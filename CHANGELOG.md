@@ -1,10 +1,6 @@
 # Changelog
 
-## [Unreleased]
-
-### Breaking Changes
-
-### Added
+## [0.6.4] - 2026-11-08
 
 ### Changed
 
@@ -15,10 +11,6 @@
   no longer issue back-to-back full `/api/snapshot` requests.
 - Skip re-rendering a mounted terminal when a snapshot refresh does not change that pane's identity
   or terminal settings.
-
-### Fixed
-
-### Removed
 
 ## [0.6.3] - 2026-11-08
 
