@@ -23,7 +23,9 @@ import {
   mobileTerminalPrintableKey,
 } from "./mobileTerminalControls";
 import type { MobileTerminalChordKey } from "./mobileTerminalControls";
+import { MobileKeyPad } from "./MobileKeyPad";
 import { MobileTerminalKeyButton } from "./MobileTerminalKeyButton";
+import { useKeyBoard } from "./mobileKeyBoardStore";
 import { ConfirmDialog } from "./overlays";
 import { addNativeResumeHandler } from "./native";
 import { shellQuote } from "./shell";
@@ -1643,6 +1645,7 @@ export function TerminalCommandControls({
   const focusAfterSubmitRef = useRef(false);
   const [moreKeysOpen, setMoreKeysOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
+  const keyBoard = useKeyBoard();
   const [composerModifiers, setComposerModifiers] = useState<MobileTerminalModifier[]>([]);
   const [composerKey, setComposerKey] = useState<MobileTerminalChordKey | null>(null);
   const [printableKey, setPrintableKey] = useState("");
@@ -1727,26 +1730,6 @@ export function TerminalCommandControls({
     <MobileTerminalKeyButton key={key.id} terminalKey={key} disabled={disabled}
       repeat={repeat} onInput={onInput} />
   );
-  const attachQuickKeyScrollHints = useCallback((node: HTMLDivElement | null) => {
-    if (!node) {
-      return;
-    }
-    const updateScrollHints = () => {
-      node.dataset.scrollLeft = String(node.scrollLeft > 1);
-      node.dataset.scrollRight = String(node.scrollWidth - node.clientWidth - node.scrollLeft > 1);
-    };
-    const observer = window.ResizeObserver ? new ResizeObserver(updateScrollHints) : null;
-    observer?.observe(node);
-    node.addEventListener("scroll", updateScrollHints, { passive: true });
-    window.addEventListener("resize", updateScrollHints);
-    updateScrollHints();
-    return () => {
-      observer?.disconnect();
-      node.removeEventListener("scroll", updateScrollHints);
-      window.removeEventListener("resize", updateScrollHints);
-    };
-  }, []);
-
   useLayoutEffect(() => {
     const node = commandInputRef.current;
     if (fieldKey > 0 && node) {
@@ -1837,25 +1820,17 @@ export function TerminalCommandControls({
       data-composing={mobileControls && composerOpen ? "true" : "false"}
     >
       <div className="term-key-strip" aria-label="Common terminal keys" hidden={!mobileControls}>
-        <div
-          ref={mobileControls ? attachQuickKeyScrollHints : undefined}
-          className="term-key-group"
-          role="group"
-          aria-label="Terminal quick keys"
-        >
-          {QUICK_TERMINAL_KEYS.map(({ key, modifiers, label }) => (
-            <button key={key.id} className="term-key" type="button" disabled={disabled}
-              aria-label={composerOpen ? `Use ${label} key` : undefined}
-              aria-pressed={composerOpen ? composerKey?.id === key.id : undefined}
-              data-active={composerOpen && composerKey?.id === key.id ? "true" : "false"}
-              onPointerDown={preserveTouchInputFocus}
-              onClick={() => composerOpen
-                ? chooseComposerKey(key, modifiers)
-                : onInput(encodeMobileTerminalChord(key, modifiers))}>
-              {label}
-            </button>
-          ))}
-        </div>
+        {composerOpen ? null : (
+          <MobileKeyPad
+            board={keyBoard}
+            disabled={disabled}
+            onSend={(chunks) => {
+              for (const chunk of chunks) {
+                onInput(chunk);
+              }
+            }}
+          />
+        )}
         <div className="term-key-actions" role="group" aria-label="Terminal actions">
           <button
             className="term-key term-key-icon"
@@ -2080,21 +2055,6 @@ function preserveTouchInputFocus(event: ReactPointerEvent<HTMLButtonElement>) {
     event.preventDefault();
   }
 }
-
-const QUICK_TERMINAL_KEYS: {
-  key: MobileTerminalChordKey;
-  modifiers: MobileTerminalModifier[];
-  label: string;
-}[] = [
-  ...MOBILE_TERMINAL_SPECIAL_KEYS.filter((key) => ["escape", "tab"].includes(key.id))
-    .map((key) => ({ key, modifiers: [], label: key.label })),
-  ...["c", "d"].map((value) => ({
-    key: mobileTerminalPrintableKey(value), modifiers: ["ctrl" as const], label: `C-${value}`,
-  })),
-  ...["1", "2", "3"].map((value) => ({
-    key: mobileTerminalPrintableKey(value), modifiers: [], label: value,
-  })),
-];
 
 function terminalSocketUrl(
   wsUrl: (path: string, query?: URLSearchParams) => string,

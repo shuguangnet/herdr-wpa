@@ -180,6 +180,39 @@ export function encodeChordStep(step: string): string | null {
   return encodeMobileTerminalChord(key, parsed.mods as MobileTerminalModifier[]);
 }
 
+/** Merges sticky modifiers into a step, keeping canonical order and no repeats. */
+export function applyModifiers(
+  step: string,
+  mods: readonly ModifierName[],
+): string | null {
+  const parsed = parseChordStep(step);
+  if (!parsed) {
+    return null;
+  }
+  const merged = MODIFIER_ORDER.filter(
+    (mod) => mods.includes(mod) || parsed.mods.includes(mod),
+  );
+  return [...merged, parsed.base].join("+");
+}
+
+const REPEATABLE_BASES: ReadonlySet<string> = new Set([
+  "Up",
+  "Down",
+  "Left",
+  "Right",
+  "Backspace",
+  "Space",
+]);
+
+/** Whether holding this key should repeat it (arrows, Backspace, Space). */
+export function isRepeatableKey(key: BoardKey): boolean {
+  if (key.kind !== "chord" || key.steps.length !== 1) {
+    return false;
+  }
+  const parsed = parseChordStep(key.steps[0]);
+  return parsed !== null && parsed.mods.length === 0 && REPEATABLE_BASES.has(parsed.base);
+}
+
 /** Validates one board key; returns a readable reason or null. */
 export function validateKey(key: BoardKey): string | null {
   if (key.kind === "mod") {

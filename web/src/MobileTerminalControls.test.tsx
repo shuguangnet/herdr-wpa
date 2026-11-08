@@ -396,16 +396,18 @@ describe("TerminalCommandControls", () => {
     ]);
     expect(actions.textContent?.trim()).toBe("");
     expect(container.querySelector("form")?.querySelectorAll("button")).toHaveLength(1);
-    const shortcuts = container.querySelector('[aria-label="Terminal quick keys"]');
-    if (!(shortcuts instanceof HTMLElement)) {
-      throw new Error("Missing scrollable quick keys");
+    const keyBoard = container.querySelector('[aria-label="Terminal key board"]');
+    if (!(keyBoard instanceof HTMLElement)) {
+      throw new Error("Missing terminal key board");
     }
-    const keys = [...shortcuts.querySelectorAll("button")];
-    expect(keys.map((key) => key.textContent)).toEqual(["Esc", "Tab", "C-c", "C-d", "1", "2", "3"]);
-    for (const key of keys) {
-      await act(async () => key.click());
+    const keys = [...keyBoard.querySelectorAll("button")];
+    expect(keys.map((key) => key.textContent)).toEqual([
+      "Esc", "Tab", "Bksp", "Ctrl", "↑", "C-c", "C-d", "←", "↓", "→", "Enter", "Shift", "Alt",
+    ]);
+    for (const label of ["Send Esc", "Send Tab", "Send ↑", "Send C-c"]) {
+      await clickButton(container, label);
     }
-    expect(onInput.mock.calls).toEqual([["\x1B"], ["\t"], ["\x03"], ["\x04"], ["1"], ["2"], ["3"]]);
+    expect(onInput.mock.calls).toEqual([["\x1B"], ["\t"], ["\x1B[A"], ["\x03"]]);
     await clickButton(actions, "Upload file");
     await clickButton(actions, "Focus terminal keyboard");
     expect(onUpload).toHaveBeenCalledOnce();
@@ -433,28 +435,6 @@ describe("TerminalCommandControls", () => {
     expect(container.querySelector(".term-key-composer")).toBeNull();
   });
 
-  it("updates shortcut edge hints as the strip scrolls and resizes", async () => {
-    const { container } = await renderControls(false);
-    const shortcuts = container.querySelector<HTMLElement>('[aria-label="Terminal quick keys"]');
-    if (!shortcuts) {
-      throw new Error("Missing scrollable quick keys");
-    }
-    Object.defineProperties(shortcuts, {
-      clientWidth: { configurable: true, value: 100 },
-      scrollWidth: { configurable: true, value: 300 },
-    });
-    window.dispatchEvent(new Event("resize"));
-    expect(shortcuts.dataset.scrollLeft).toBe("false");
-    expect(shortcuts.dataset.scrollRight).toBe("true");
-    shortcuts.scrollLeft = 50;
-    shortcuts.dispatchEvent(new Event("scroll"));
-    expect(shortcuts.dataset.scrollLeft).toBe("true");
-    expect(shortcuts.dataset.scrollRight).toBe("true");
-    shortcuts.scrollLeft = 200;
-    shortcuts.dispatchEvent(new Event("scroll"));
-    expect(shortcuts.dataset.scrollRight).toBe("false");
-  });
-
   it("uses one shared key set to select a chord without sending or repeating", async () => {
     const { container, onInput } = await renderControls(false);
     await setCommandValue(commandField(container), "keep draft");
@@ -477,20 +457,21 @@ describe("TerminalCommandControls", () => {
     expect(commandField(container).value).toBe("keep draft");
   });
 
-  it("selects quick keys in Compose mode and cancels without sending", async () => {
+  it("hides the key pad while composing and keeps direct keys usable", async () => {
     const { container, onInput } = await renderControls(false);
+    expect(container.querySelector('[aria-label="Terminal key board"]')).not.toBeNull();
     await openComposer(container);
-    for (const key of ["Esc", "Tab", "C-c", "C-d", "1", "2", "3"]) {
-      await clickButton(container, `Use ${key} key`);
-    }
-    expect(onInput).not.toHaveBeenCalled();
+    expect(container.querySelector('[aria-label="Terminal key board"]')).toBeNull();
+    expect(composerPanel(container).textContent).toContain("Choose a key");
+    await clickButton(container, "Use Home key");
     await clickButton(container, "Cancel shortcut");
     expect(container.querySelector(".term-key-composer")).toBeNull();
     await openComposer(container);
-    expect(composerPanel(container).textContent).toContain("Choose a key");
-    await clickButton(container, "Use C-c key");
-    await clickButton(container, "Send Ctrl + c");
-    expect(onInput).toHaveBeenCalledExactlyOnceWith("\x03");
+    await clickButton(container, "Use Home key");
+    await clickButton(container, "Send Home");
+    expect(onInput).toHaveBeenCalledExactlyOnceWith("\x1B[H");
+    expect(container.querySelector(".term-key-composer")).toBeNull();
+    expect(container.querySelector('[aria-label="Terminal key board"]')).not.toBeNull();
   });
 
   it("keeps the navigation pad open across direct keys and Compose sends", async () => {
@@ -501,8 +482,8 @@ describe("TerminalCommandControls", () => {
     }
     await openComposer(container);
     await clickButton(container, "Add Shift modifier");
-    await clickButton(container, "Use Tab key");
-    await clickButton(container, "Send Shift + Tab");
+    await clickButton(container, "Use Home key");
+    await clickButton(container, "Send Shift + Home");
     await clickButton(container, "Send Home");
 
     expect(onInput.mock.calls).toEqual([
@@ -511,7 +492,7 @@ describe("TerminalCommandControls", () => {
       ["\x1B[3~"],
       ["\x1B[5~"],
       ["\x1B[6~"],
-      ["\x1B[Z"],
+      ["\x1B[1;2H"],
       ["\x1B[H"],
     ]);
     await clickButton(container, "Hide more keys");
@@ -539,11 +520,9 @@ describe("TerminalCommandControls", () => {
     expect(composerPanel(container).querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
   });
 
-  it("keeps Tab in the top row and uses the expanded icon for shortcut building", async () => {
+  it("keeps Tab on the key board and uses the expanded icon for shortcut building", async () => {
     const { container, onInput } = await renderControls(false);
-    const tab = [...container.querySelectorAll<HTMLButtonElement>('.term-key-group button')]
-      .find((button) => button.textContent === "Tab")!;
-    await act(async () => tab.click());
+    await clickButton(container, "Send Tab");
     expect(onInput).toHaveBeenCalledExactlyOnceWith("\t");
     await clickButton(container, "Show more keys");
     expect([...container.querySelectorAll(".term-key-direct-row button")].map((button) => button.textContent))
@@ -553,13 +532,12 @@ describe("TerminalCommandControls", () => {
     expect(compose.querySelector("svg")).not.toBeNull();
     await openComposer(container);
     await clickButton(container, "Add Shift modifier");
-    await clickButton(container, "Use Tab key");
-    expect(container.querySelectorAll('[aria-label="Use Tab key"]')).toHaveLength(1);
-    await clickButton(container, "Send Shift + Tab");
-    expect(onInput.mock.calls).toEqual([["\t"], ["\x1B[Z"]]);
+    await clickButton(container, "Use Up key");
+    await clickButton(container, "Send Shift + ↑");
+    expect(onInput.mock.calls).toEqual([["\t"], ["\x1B[1;2A"]]);
   });
 
-  it.each(["Up", "Home", "Tab", "C-c", "1"])(
+  it.each(["Up", "Home"])(
     "deselects %s on a second tap while preserving modifiers and the command draft",
     async (key) => {
       const { container, onInput } = await renderControls(false);
@@ -584,16 +562,6 @@ describe("TerminalCommandControls", () => {
     },
   );
 
-  it("does not re-enable Ctrl when deselecting its quick key", async () => {
-    const { container } = await renderControls(false);
-    await openComposer(container);
-    await clickButton(container, "Use C-c key");
-    await clickButton(container, "Remove Ctrl modifier");
-    await clickButton(container, "Use C-c key");
-    expect(composerPanel(container).querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
-    expect(composerPanel(container).textContent).toContain("Choose a key");
-  });
-
   it.each(["touch", "pen", "mouse"])("preserves input focus for %s quick-key and shortcut taps", async (pointerType) => {
     const { container, onInput } = await renderControls(false);
     const tap = async (button: HTMLButtonElement, field: HTMLInputElement | HTMLTextAreaElement) => {
@@ -608,8 +576,7 @@ describe("TerminalCommandControls", () => {
       expect(down.defaultPrevented).toBe(pointerType !== "mouse");
       expect(document.activeElement).toBe(pointerType === "mouse" ? button : field);
     };
-    const tab = [...container.querySelectorAll<HTMLButtonElement>(".term-key-group button")]
-      .find((button) => button.textContent === "Tab")!;
+    const tab = container.querySelector<HTMLButtonElement>('[aria-label="Send Tab"]')!;
     await tap(tab, commandField(container));
     expect(onInput).toHaveBeenCalledExactlyOnceWith("\t");
     await openComposer(container);
@@ -623,8 +590,6 @@ describe("TerminalCommandControls", () => {
   it("sends Enter once when held and composes Alt+Enter without changing the draft", async () => {
     const { container, onInput, onSubmitCommand } = await renderControls(false);
     await setCommandValue(commandField(container), "keep draft");
-    expect(container.querySelector('[aria-label="Send Enter"]')).toBeNull();
-    await clickButton(container, "Show more keys");
     const enter = container.querySelector<HTMLButtonElement>('[aria-label="Send Enter"]')!;
     enter.setPointerCapture = vi.fn();
     vi.useFakeTimers();
