@@ -1,6 +1,7 @@
 export const DEFAULT_CONTENT_INSET_TOP_PX = 0;
 export const DEFAULT_CONTENT_INSET_BOTTOM_PX = 0;
 export const DEFAULT_MOBILE_CONTROLS_SCALE_PERCENT = 100;
+export const DEFAULT_MOBILE_KEY_PAD_ENABLED = true;
 export const DEFAULT_AGENT_FEATURES_IN_TABS = true;
 export const DEFAULT_MULTI_HOST_SPACE_SELECTION = true;
 
@@ -10,6 +11,10 @@ export const MIN_CONTENT_INSET_BOTTOM_PX = 0;
 export const MAX_CONTENT_INSET_BOTTOM_PX = 160;
 export const MIN_MOBILE_CONTROLS_SCALE_PERCENT = 80;
 export const MAX_MOBILE_CONTROLS_SCALE_PERCENT = 150;
+
+export function parseMobileKeyPadEnabled(value: unknown) {
+  return typeof value === "boolean" ? value : DEFAULT_MOBILE_KEY_PAD_ENABLED;
+}
 
 export function parseContentInsetTopPx(value: unknown) {
   return parseClampedInteger(

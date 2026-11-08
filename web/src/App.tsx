@@ -76,11 +76,13 @@ import {
   DEFAULT_CONTENT_INSET_BOTTOM_PX,
   DEFAULT_CONTENT_INSET_TOP_PX,
   DEFAULT_MOBILE_CONTROLS_SCALE_PERCENT,
+  DEFAULT_MOBILE_KEY_PAD_ENABLED,
   DEFAULT_AGENT_FEATURES_IN_TABS,
   DEFAULT_MULTI_HOST_SPACE_SELECTION,
   parseContentInsetBottomPx,
   parseContentInsetTopPx,
   parseMobileControlsScalePercent,
+  parseMobileKeyPadEnabled,
   parseAgentFeaturesInTabs,
   parseMultiHostSpaceSelection,
 } from "./displayPrefs";
@@ -453,6 +455,7 @@ type DisplayPrefs = {
   contentInsetTopPx: number;
   contentInsetBottomPx: number;
   mobileControlsScalePercent: number;
+  mobileKeyPad: boolean;
   mobileTerminalTapTarget: MobileTerminalTapTarget;
   mobileLongPressBehavior: MobileLongPressBehavior;
   mobileTouchSelectionEndpointTimeoutMs: MobileTouchSelectionEndpointTimeoutMs;
@@ -522,6 +525,7 @@ function readDisplayPrefs(): DisplayPrefs {
     contentInsetTopPx: DEFAULT_CONTENT_INSET_TOP_PX,
     contentInsetBottomPx: DEFAULT_CONTENT_INSET_BOTTOM_PX,
     mobileControlsScalePercent: DEFAULT_MOBILE_CONTROLS_SCALE_PERCENT,
+    mobileKeyPad: DEFAULT_MOBILE_KEY_PAD_ENABLED,
     mobileTerminalTapTarget: DEFAULT_MOBILE_TERMINAL_TAP_TARGET,
     mobileLongPressBehavior: DEFAULT_MOBILE_LONG_PRESS_BEHAVIOR,
     mobileTouchSelectionEndpointTimeoutMs: DEFAULT_MOBILE_TOUCH_SELECTION_ENDPOINT_TIMEOUT_MS,
@@ -742,6 +746,7 @@ function parseDisplayPrefsValue(
     mobileControlsScalePercent: parseMobileControlsScalePercent(
       parsed.mobileControlsScalePercent,
     ),
+    mobileKeyPad: parseMobileKeyPadEnabled(parsed.mobileKeyPad),
     mobileTerminalTapTarget: parseMobileTerminalTapTarget(parsed.mobileTerminalTapTarget),
     mobileLongPressBehavior: parseStoredMobileLongPressBehavior(parsed),
     mobileTouchSelectionEndpointTimeoutMs: parseMobileTouchSelectionEndpointTimeoutMs(
@@ -1150,6 +1155,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
   const [mobileControlsScalePercent, setMobileControlsScalePercent] = useState(
     initialPrefs.mobileControlsScalePercent,
   );
+  const [mobileKeyPadEnabled, setMobileKeyPadEnabled] = useState(initialPrefs.mobileKeyPad);
   const [mobileTerminalTapTarget, setMobileTerminalTapTarget] = useState(
     initialPrefs.mobileTerminalTapTarget,
   );
@@ -1280,6 +1286,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
       setContentInsetTopPx(prefs.contentInsetTopPx);
       setContentInsetBottomPx(prefs.contentInsetBottomPx);
       setMobileControlsScalePercent(prefs.mobileControlsScalePercent);
+      setMobileKeyPadEnabled(prefs.mobileKeyPad);
       setMobileTerminalTapTarget(prefs.mobileTerminalTapTarget);
       setMobileLongPressBehavior(prefs.mobileLongPressBehavior);
       setMobileTouchSelectionEndpointTimeoutMs(prefs.mobileTouchSelectionEndpointTimeoutMs);
@@ -1844,6 +1851,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
       contentInsetTopPx,
       contentInsetBottomPx,
       mobileControlsScalePercent,
+      mobileKeyPad: mobileKeyPadEnabled,
       mobileTerminalTapTarget,
       mobileLongPressBehavior,
       mobileTouchSelectionEndpointTimeoutMs,
@@ -1885,6 +1893,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
     contentInsetTopPx,
     contentInsetBottomPx,
     mobileControlsScalePercent,
+    mobileKeyPadEnabled,
     mobileTerminalTapTarget,
     mobileLongPressBehavior,
     mobileTouchSelectionEndpointTimeoutMs,
@@ -4258,6 +4267,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
             refitToken={refitToken}
             focusToken={terminalFocusToken}
             touchInput={isTouchInput}
+            mobileKeyPad={mobileKeyPadEnabled}
             desktopCommandComposer={desktopCommandComposer}
             desktopCommandEnterNewline={desktopCommandEnterNewline}
             terminalCursorBlink={terminalCursorBlink}
@@ -4291,6 +4301,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
             autoFocus={!isTouchInput}
             scrollSensitivity={isTouchInput ? 2 : 0.4}
             mobileControls={isTouchInput}
+            mobileKeyPad={mobileKeyPadEnabled}
             onConnectionStateChange={setTerminalConnectionState}
             desktopCommandComposer={desktopCommandComposer}
             desktopCommandEnterNewline={desktopCommandEnterNewline}
@@ -4557,6 +4568,8 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
           onContentInsetBottomPx={setContentInsetBottomPx}
           mobileControlsScalePercent={mobileControlsScalePercent}
           onMobileControlsScalePercent={setMobileControlsScalePercent}
+          mobileKeyPadEnabled={mobileKeyPadEnabled}
+          onMobileKeyPadEnabled={setMobileKeyPadEnabled}
           mobileTerminalTapTarget={mobileTerminalTapTarget}
           onMobileTerminalTapTarget={setMobileTerminalTapTarget}
           mobileLongPressBehavior={mobileLongPressBehavior}
@@ -6058,6 +6071,7 @@ function SplitGrid({
   refitToken,
   focusToken,
   touchInput,
+  mobileKeyPad,
   desktopCommandComposer,
   desktopCommandEnterNewline,
   terminalCursorBlink,
@@ -6087,6 +6101,7 @@ function SplitGrid({
   refitToken: number;
   focusToken: number;
   touchInput: boolean;
+  mobileKeyPad: boolean;
   desktopCommandComposer: boolean;
   desktopCommandEnterNewline: boolean;
   terminalCursorBlink: boolean;
@@ -6133,6 +6148,7 @@ function SplitGrid({
               autoFocus={selected && !touchInput}
               scrollSensitivity={touchInput ? 2 : 0.4}
               mobileControls={selected && touchInput}
+              mobileKeyPad={mobileKeyPad}
               desktopCommandComposer={selected && !touchInput && desktopCommandComposer}
               desktopCommandEnterNewline={desktopCommandEnterNewline}
               cursorBlink={!touchInput && terminalCursorBlink}

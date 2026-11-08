@@ -21,7 +21,8 @@
 - Keep the mobile dock and key board editor above the soft keyboard with a `visualViewport` inset,
   and raise primary touch targets to 40 CSS pixels.
 - Add reconnect jitter to browser event sockets so multiple tabs do not retry in lockstep.
-- Add Mobile settings for key haptics, swipe gestures, and resetting the key board layout.
+- Add Mobile settings for key haptics, swipe gestures, resetting the key board layout, and keeping
+  the legacy quick-key strip as an opt-out from the editable key board.
 
 ### Fixed
 

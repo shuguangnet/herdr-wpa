@@ -97,6 +97,8 @@ type Props = {
   mobileControls?: boolean;
   /** Whether to show the expanding command composer without enabling mobile terminal behavior. */
   desktopCommandComposer?: boolean;
+  /** Whether the editable key board replaces the legacy quick-key strip. */
+  mobileKeyPad?: boolean;
   /** Whether Enter inserts a newline in the desktop command composer. */
   desktopCommandEnterNewline?: boolean;
   /** Whether the terminal cursor blinks. Off on touch devices. */
@@ -186,6 +188,7 @@ function TerminalViewComponent({
   scrollSensitivity = 1,
   mobileControls = false,
   desktopCommandComposer = false,
+  mobileKeyPad = true,
   desktopCommandEnterNewline = true,
   cursorBlink = true,
   terminalFontSizePx = DEFAULT_TERMINAL_FONT_SIZE_PX,
@@ -1494,6 +1497,7 @@ function TerminalViewComponent({
           expandingInput={mobileControls ? mobileCommandExpandingInput : true}
           enterNewline={mobileControls ? mobileCommandEnterNewline : desktopCommandEnterNewline}
           mobileControls={mobileControls}
+          mobileKeyPad={mobileKeyPad}
           mobileFocusAfterSubmit={mobileCommandFocusAfterSubmit}
           controlsScalePercent={mobileControls ? mobileControlsScalePercent : 100}
           onControlsHeightChange={setCommandControlsHeight}
@@ -1598,6 +1602,7 @@ export function TerminalCommandControls({
   expandingInput,
   enterNewline,
   mobileControls,
+  mobileKeyPad = true,
   mobileFocusAfterSubmit = false,
   controlsScalePercent,
   onControlsHeightChange,
@@ -1615,6 +1620,7 @@ export function TerminalCommandControls({
   expandingInput: boolean;
   enterNewline: boolean;
   mobileControls: boolean;
+  mobileKeyPad?: boolean;
   mobileFocusAfterSubmit?: boolean;
   controlsScalePercent: number;
   onControlsHeightChange: (heightPx: number | null) => void;
@@ -1828,17 +1834,41 @@ export function TerminalCommandControls({
       data-composing={mobileControls && composerOpen ? "true" : "false"}
     >
       <div className="term-key-strip" aria-label="Common terminal keys" hidden={!mobileControls}>
-        {composerOpen ? null : (
-          <MobileKeyPad
-            board={keyBoard}
-            disabled={disabled}
-            onEdit={() => setKeyPadEditorOpen(true)}
-            onSend={(chunks) => {
-              for (const chunk of chunks) {
-                onInput(chunk);
-              }
-            }}
-          />
+        {mobileKeyPad ? (
+          composerOpen ? null : (
+            <MobileKeyPad
+              board={keyBoard}
+              disabled={disabled}
+              onEdit={() => setKeyPadEditorOpen(true)}
+              onSend={(chunks) => {
+                for (const chunk of chunks) {
+                  onInput(chunk);
+                }
+              }}
+            />
+          )
+        ) : (
+          <div className="term-key-group" role="group" aria-label="Terminal quick keys">
+            {QUICK_TERMINAL_KEYS.map(({ key, modifiers, label }) => (
+              <button
+                key={key.id}
+                className="term-key"
+                type="button"
+                disabled={disabled}
+                aria-label={composerOpen ? `Use ${label} key` : undefined}
+                aria-pressed={composerOpen ? composerKey?.id === key.id : undefined}
+                data-active={composerOpen && composerKey?.id === key.id ? "true" : "false"}
+                onPointerDown={preserveTouchInputFocus}
+                onClick={() =>
+                  composerOpen
+                    ? chooseComposerKey(key, modifiers)
+                    : onInput(encodeMobileTerminalChord(key, modifiers))
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         )}
         <div className="term-key-actions" role="group" aria-label="Terminal actions">
           <button
@@ -2074,6 +2104,26 @@ function preserveTouchInputFocus(event: ReactPointerEvent<HTMLButtonElement>) {
     event.preventDefault();
   }
 }
+
+const QUICK_TERMINAL_KEYS: {
+  key: MobileTerminalChordKey;
+  modifiers: MobileTerminalModifier[];
+  label: string;
+}[] = [
+  ...MOBILE_TERMINAL_SPECIAL_KEYS.filter((key) => ["escape", "tab"].includes(key.id)).map(
+    (key) => ({ key, modifiers: [], label: key.label }),
+  ),
+  ...["c", "d"].map((value) => ({
+    key: mobileTerminalPrintableKey(value),
+    modifiers: ["ctrl" as const],
+    label: `C-${value}`,
+  })),
+  ...["1", "2", "3"].map((value) => ({
+    key: mobileTerminalPrintableKey(value),
+    modifiers: [],
+    label: value,
+  })),
+];
 
 function terminalSocketUrl(
   wsUrl: (path: string, query?: URLSearchParams) => string,

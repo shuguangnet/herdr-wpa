@@ -68,6 +68,29 @@ describe("BackendSettingsDialog terminal accessibility", () => {
     expect(onFocusChange).toHaveBeenCalledWith(true);
   });
 
+  it("offers a fallback to the legacy quick-key strip", async () => {
+    const onKeyPad = vi.fn();
+    const { container } = await render(
+      <BackendSettingsDialog
+        {...settingsProps()}
+        showMobileTerminalSettings={true}
+        onMobileKeyPadEnabled={onKeyPad}
+      />,
+    );
+    const tab = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find(
+      (button) => button.textContent?.includes("Mobile"),
+    );
+    await act(async () => tab!.click());
+    const group = requiredElement<HTMLElement>(
+      container,
+      '[role="group"][aria-label="Editable key board"]',
+    );
+    const [off, on] = Array.from(group.querySelectorAll<HTMLButtonElement>("button"));
+    expect(on.getAttribute("aria-pressed")).toBe("true");
+    await act(async () => off.click());
+    expect(onKeyPad).toHaveBeenCalledWith(false);
+  });
+
   it("persists key haptics and resets the key board from the Mobile area", async () => {
     setKeyBoard(addRow(DEFAULT_BOARD));
     expect(localStorage.getItem(KEY_BOARD_STORAGE_KEY)).not.toBeNull();
@@ -326,6 +349,8 @@ function settingsProps() {
     onContentInsetBottomPx: vi.fn(),
     mobileControlsScalePercent: 100,
     onMobileControlsScalePercent: vi.fn(),
+    mobileKeyPadEnabled: true,
+    onMobileKeyPadEnabled: vi.fn(),
     mobileTerminalTapTarget: "command-input" as const,
     onMobileTerminalTapTarget: vi.fn(),
     mobileLongPressBehavior: "off" as const,

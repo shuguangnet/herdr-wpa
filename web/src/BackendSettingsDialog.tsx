@@ -98,6 +98,8 @@ type Props = {
   onContentInsetBottomPx: (value: number) => void;
   mobileControlsScalePercent: number;
   onMobileControlsScalePercent: (value: number) => void;
+  mobileKeyPadEnabled: boolean;
+  onMobileKeyPadEnabled: (enabled: boolean) => void;
   mobileTerminalTapTarget: MobileTerminalTapTarget;
   onMobileTerminalTapTarget: (target: MobileTerminalTapTarget) => void;
   mobileLongPressBehavior: MobileLongPressBehavior;
@@ -164,6 +166,8 @@ export function BackendSettingsDialog({
   onContentInsetBottomPx,
   mobileControlsScalePercent,
   onMobileControlsScalePercent,
+  mobileKeyPadEnabled,
+  onMobileKeyPadEnabled,
   mobileTerminalTapTarget,
   onMobileTerminalTapTarget,
   mobileLongPressBehavior,
@@ -929,6 +933,31 @@ export function BackendSettingsDialog({
             {activeArea === "mobile" && showMobileTerminalSettings ? (
               <div className="settings-section settings-section-flat">
                 <div className="settings-label">Key board &amp; gestures</div>
+                <div className="settings-row">
+                  <span>Editable key board</span>
+                  <div
+                    className="segmented-control"
+                    role="group"
+                    aria-label="Editable key board"
+                  >
+                    <button
+                      type="button"
+                      data-on={!mobileKeyPadEnabled}
+                      aria-pressed={!mobileKeyPadEnabled}
+                      onClick={() => onMobileKeyPadEnabled(false)}
+                    >
+                      Off
+                    </button>
+                    <button
+                      type="button"
+                      data-on={mobileKeyPadEnabled}
+                      aria-pressed={mobileKeyPadEnabled}
+                      onClick={() => onMobileKeyPadEnabled(true)}
+                    >
+                      On
+                    </button>
+                  </div>
+                </div>
                 <div className="settings-row">
                   <span>Key haptics</span>
                   <div className="segmented-control" role="group" aria-label="Key haptics">
