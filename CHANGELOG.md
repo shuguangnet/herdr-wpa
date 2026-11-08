@@ -1,10 +1,6 @@
 # Changelog
 
-## [Unreleased]
-
-### Breaking Changes
-
-### Added
+## [0.6.5] - 2026-11-08
 
 ### Changed
 
@@ -14,10 +10,6 @@
   attach size immediately.
 - Pause periodic snapshot polling while the page is hidden and refresh once when it becomes visible.
 - Disable expensive backdrop blur on coarse-pointer (touch) devices.
-
-### Fixed
-
-### Removed
 
 ## [0.6.4] - 2026-11-08
 
