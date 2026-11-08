@@ -145,6 +145,7 @@ import {
   useFocusReturn,
 } from "./overlayFocus";
 import { createSnapshotRefreshController } from "./refreshCoordinator";
+import { commitSnapshotState, snapshotFingerprint } from "./snapshotState";
 import { TerminalView } from "./TerminalView";
 import {
   DEFAULT_TERMINAL_SCREEN_READER_TEXT,
@@ -257,6 +258,7 @@ export type BridgeConnectionState = {
   connectionKey: string;
   snapshot: Snapshot | null;
   loadState: LoadState;
+  fingerprint?: string | null;
 };
 type BridgeResourceState<Response> = {
   connectionKey: string;
@@ -309,6 +311,8 @@ type BridgeAgentActivityState = BridgeResourceState<AgentActivityListResponse>;
 export type BridgeConnectionRef = {
   connectionKey: string;
   snapshot: Snapshot | null;
+  /** Last `ETag` returned by `/api/snapshot`, used for conditional refreshes. */
+  etag?: string | null;
   activityGeneration: number;
   resyncBarrierGeneration: number;
   activityLog: ActivityLogEntry[];
@@ -3260,7 +3264,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
       }));
     }
     try {
-      const next = await fetchSnapshot(runtime.httpUrl);
+      const next = await fetchSnapshot(runtime.httpUrl, ref.etag);
       const currentRef = connectionRefs.current[runtime.id];
       if (
         !currentRef ||
@@ -3268,19 +3272,38 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
       ) {
         return null;
       }
+      if (!next) {
+        // 304 Not Modified: the bridge reported the same payload, so keep the
+        // existing snapshot object and skip the tree-wide re-render.
+        if (setLoading) {
+          setConnectionStates((current) => {
+            const existing = current[runtime.id];
+            if (!existing || existing.loadState === "ready") {
+              return current;
+            }
+            return {
+              ...current,
+              [runtime.id]: { ...existing, loadState: "ready" },
+            };
+          });
+        }
+        return currentRef.snapshot;
+      }
+      currentRef.etag = next.etag;
       if (currentRef.resyncBarrierGeneration > refreshGeneration) {
         return refreshBridgeSnapshot(runtime, false);
       }
-      const patched = applySnapshotOverlays(next, currentRef, refreshGeneration);
+      const patched = applySnapshotOverlays(next.snapshot, currentRef, refreshGeneration);
       currentRef.snapshot = patched;
-      setConnectionStates((current) => ({
-        ...current,
-        [runtime.id]: {
-          connectionKey: requestConnectionKey,
-          snapshot: patched,
-          loadState: "ready",
-        },
-      }));
+      setConnectionStates((current) =>
+        commitSnapshotState(
+          current,
+          runtime.id,
+          requestConnectionKey,
+          patched,
+          snapshotFingerprint(patched),
+        ),
+      );
       return patched;
     } catch {
       const currentRef = connectionRefs.current[runtime.id];
@@ -3532,16 +3555,21 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
       if (!ref || !isConnectionResultCurrent(ref.connectionKey, requestConnectionKey)) {
         return false;
       }
-      const patched = applySnapshotOverlays(next, ref, refreshGeneration);
+      if (!next) {
+        return false;
+      }
+      ref.etag = next.etag;
+      const patched = applySnapshotOverlays(next.snapshot, ref, refreshGeneration);
       ref.snapshot = patched;
-      setConnectionStates((current) => ({
-        ...current,
-        [runtime.id]: {
-          connectionKey: requestConnectionKey,
-          snapshot: patched,
-          loadState: "ready",
-        },
-      }));
+      setConnectionStates((current) =>
+        commitSnapshotState(
+          current,
+          runtime.id,
+          requestConnectionKey,
+          patched,
+          snapshotFingerprint(patched),
+        ),
+      );
       if (selectCreated) {
         const paneId = createdPaneId(result);
         const created = paneId ? patched.panes.find((pane) => pane.pane_id === paneId) : undefined;
@@ -4611,7 +4639,11 @@ export function BridgeConnectionController({
         requestConnectionKey,
       );
     const refreshController = createSnapshotRefreshController({
-      fetchSnapshot: () => fetchSnapshot(httpUrlRef.current),
+      fetchSnapshot: () =>
+        fetchSnapshot(
+          httpUrlRef.current,
+          connectionRefs.current[runtime.id]?.etag ?? null,
+        ),
       getGeneration: () => connectionRefs.current[runtime.id]?.activityGeneration ?? 0,
       getBarrierGeneration: () =>
         connectionRefs.current[runtime.id]?.resyncBarrierGeneration ?? 0,
@@ -4633,16 +4665,22 @@ export function BridgeConnectionController({
         if (!currentRef || currentRef.connectionKey !== requestConnectionKey) {
           return;
         }
-        const patched = applySnapshotOverlays(next, currentRef, refreshGeneration);
+        if (!next) {
+          // 304 Not Modified: nothing changed upstream, keep local state.
+          return;
+        }
+        currentRef.etag = next.etag;
+        const patched = applySnapshotOverlays(next.snapshot, currentRef, refreshGeneration);
         currentRef.snapshot = patched;
-        setConnectionStates((current) => ({
-          ...current,
-          [runtime.id]: {
-            connectionKey: requestConnectionKey,
-            snapshot: patched,
-            loadState: "ready",
-          },
-        }));
+        setConnectionStates((current) =>
+          commitSnapshotState(
+            current,
+            runtime.id,
+            requestConnectionKey,
+            patched,
+            snapshotFingerprint(patched),
+          ),
+        );
       },
     });
     const refresh = () => refreshController.request();
@@ -4833,6 +4871,7 @@ function ensureBridgeConnectionRef(
   const next: BridgeConnectionRef = {
     connectionKey: runtime.connectionKey,
     snapshot: null,
+    etag: null,
     activityGeneration: 0,
     resyncBarrierGeneration: 0,
     activityLog: [],
@@ -9650,12 +9689,25 @@ function stageBreadcrumb(
   return [workspace?.label, tabLabel].filter(Boolean).join(" · ") || pane.pane_id;
 }
 
-async function fetchSnapshot(httpUrl: (path: string, query?: URLSearchParams) => string) {
-  const response = await fetchWithTimeout(httpUrl("/api/snapshot"));
+async function fetchSnapshot(
+  httpUrl: (path: string, query?: URLSearchParams) => string,
+  etag: string | null = null,
+) {
+  const headers: Record<string, string> = {};
+  if (etag) {
+    headers["if-none-match"] = etag;
+  }
+  const response = await fetchWithTimeout(httpUrl("/api/snapshot"), { headers });
+  if (response.status === 304) {
+    return null;
+  }
   if (!response.ok) {
     throw new Error(`snapshot failed: ${response.status}`);
   }
-  return (await response.json()) as Snapshot;
+  return {
+    snapshot: (await response.json()) as Snapshot,
+    etag: response.headers.get("etag"),
+  };
 }
 
 function disconnectedHttpUrl(): string {

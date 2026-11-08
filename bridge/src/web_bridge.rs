@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::io::{self, ErrorKind, Write};
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
@@ -14,7 +15,8 @@ use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{DefaultBodyLimit, Path as AxumPath, Query, State};
 use axum::http::header::{
     ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN,
-    ACCESS_CONTROL_MAX_AGE, ACCESS_CONTROL_REQUEST_HEADERS, CACHE_CONTROL, HOST, ORIGIN, VARY,
+    ACCESS_CONTROL_EXPOSE_HEADERS, ACCESS_CONTROL_MAX_AGE, ACCESS_CONTROL_REQUEST_HEADERS,
+    CACHE_CONTROL, CONTENT_TYPE, ETAG, HOST, IF_NONE_MATCH, ORIGIN, VARY,
 };
 use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use axum::middleware::{self, Next};
@@ -28,6 +30,7 @@ use herdr_compat::TryClone as _;
 use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 use tower::ServiceBuilder;
+use tower_http::compression::predicate::SizeAbove;
 use tower_http::compression::CompressionLayer;
 use tower_http::services::ServeDir;
 use tracing::{debug, info, warn};
@@ -1119,7 +1122,6 @@ async fn run_server(options: BridgeOptions) -> io::Result<()> {
         .fallback_service(
             ServiceBuilder::new()
                 .layer(middleware::from_fn(add_static_cache_headers))
-                .layer(CompressionLayer::new())
                 .service(ServeDir::new(options.static_dir)),
         )
         .layer(middleware::from_fn_with_state(
@@ -1127,6 +1129,9 @@ async fn run_server(options: BridgeOptions) -> io::Result<()> {
             add_security_headers,
         ))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_BYTES))
+        // Compress both API payloads and static assets. Small responses are
+        // left alone so error bodies and tiny JSON do not pay gzip overhead.
+        .layer(CompressionLayer::new().compress_when(SizeAbove::new(1024)))
         .with_state(state);
     let bind = format!("{}:{}", options.host, options.port);
     let listener = tokio::net::TcpListener::bind(&bind).await?;
@@ -1219,6 +1224,12 @@ fn insert_cors_headers(headers: &mut HeaderMap, origin: HeaderValue) {
             HeaderValue::from_static("content-type"),
         );
     }
+    // Cross-origin clients (such as the bundled Android app) need to read the
+    // snapshot validator to issue conditional refreshes.
+    headers.insert(
+        ACCESS_CONTROL_EXPOSE_HEADERS,
+        HeaderValue::from_static("etag"),
+    );
     headers.insert(ACCESS_CONTROL_MAX_AGE, HeaderValue::from_static("600"));
     headers.insert(VARY, HeaderValue::from_static("Origin"));
 }
@@ -2923,7 +2934,7 @@ async fn upload_handler(
 async fn snapshot_handler(
     State(state): State<BridgeState>,
     headers: HeaderMap,
-) -> Result<Json<Snapshot>, BridgeError> {
+) -> Result<Response, BridgeError> {
     ensure_allowed_request(&headers, &state.request_policy)?;
     let api_state = state.clone();
     let session_snapshot = tokio::task::spawn_blocking(move || {
@@ -2953,10 +2964,46 @@ async fn snapshot_handler(
     }
     let selected_pane_id = shared_selected_pane(&state, &session_snapshot.panes)?;
 
-    Ok(Json(web_snapshot_from_session_snapshot(
-        session_snapshot,
-        selected_pane_id,
-    )))
+    let snapshot = web_snapshot_from_session_snapshot(session_snapshot, selected_pane_id);
+    let body =
+        serde_json::to_vec(&snapshot).map_err(|err| BridgeError::Protocol(err.to_string()))?;
+    let etag = snapshot_etag(&body);
+    let not_modified = headers
+        .get(IF_NONE_MATCH)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| if_none_match_matches(value, &etag));
+    if not_modified {
+        return Ok((StatusCode::NOT_MODIFIED, snapshot_headers(&etag)).into_response());
+    }
+    Ok((snapshot_headers(&etag), body).into_response())
+}
+
+/// Content validator for `/api/snapshot`. A weak ETag is used because the
+/// response may be gzip-encoded by the compression layer without changing the
+/// snapshot itself.
+fn snapshot_etag(body: &[u8]) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    body.hash(&mut hasher);
+    format!("W/\"{:016x}\"", hasher.finish())
+}
+
+fn if_none_match_matches(value: &str, etag: &str) -> bool {
+    let wanted = etag.strip_prefix("W/").unwrap_or(etag);
+    value.split(',').any(|candidate| {
+        let candidate = candidate.trim();
+        candidate == "*" || candidate.strip_prefix("W/").unwrap_or(candidate) == wanted
+    })
+}
+
+fn snapshot_headers(etag: &str) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        ETAG,
+        HeaderValue::from_str(etag).unwrap_or_else(|_| HeaderValue::from_static("W/\"0\"")),
+    );
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers
 }
 
 fn web_snapshot_from_session_snapshot(
@@ -4350,7 +4397,11 @@ fn open_activity_subscription(
             subscriptions: activity_subscriptions(pane_ids),
         }),
     };
-    let (ack, stream) = api.subscribe_value(&request, None)?;
+    // Set the read timeout while the handshake is still in flight: on some
+    // platforms (notably BSD-derived ones) the daemon can close the socket
+    // right after acknowledging, and updating the timeout on that already
+    // drained socket fails with EINVAL.
+    let (ack, stream) = api.subscribe_value(&request, Some(ACTIVITY_READ_TIMEOUT))?;
     let response = herdr_compat::api::client::parse_response_value(ack)?;
     if !matches!(response.result, ResponseResult::SubscriptionStarted {}) {
         return Err(BridgeError::Protocol(format!(
@@ -4358,7 +4409,6 @@ fn open_activity_subscription(
             response.result
         )));
     }
-    stream.set_read_timeout(ACTIVITY_READ_TIMEOUT)?;
 
     // v0.9 subscriptions are live-only. Snapshot only after the subscription is
     // acknowledged, then consume the buffered stream in order. If membership
@@ -4492,7 +4542,7 @@ fn open_event_subscription(
             subscriptions: structural_event_subscriptions(),
         }),
     };
-    let (ack, mut stream) = api.subscribe_value(&request, None)?;
+    let (ack, mut stream) = api.subscribe_value(&request, Some(ACTIVITY_READ_TIMEOUT))?;
     let response = herdr_compat::api::client::parse_response_value(ack)?;
     if !matches!(response.result, ResponseResult::SubscriptionStarted {}) {
         return Err(BridgeError::Protocol(format!(
@@ -4501,7 +4551,6 @@ fn open_event_subscription(
         )));
     }
 
-    stream.set_read_timeout(ACTIVITY_READ_TIMEOUT)?;
     let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel();
     thread::spawn(move || {
         while !event_tx.is_closed() {
@@ -5760,6 +5809,10 @@ mod tests {
                             Err(err) => panic!("accept failed: {err}"),
                         }
                     };
+                    // BSD-derived platforms inherit O_NONBLOCK from a
+                    // non-blocking listener; connected sockets must block so
+                    // the read timeout can wait for the request line.
+                    socket.set_nonblocking(false).unwrap();
                     socket
                         .set_read_timeout(Some(Duration::from_secs(5)))
                         .unwrap();
@@ -5824,6 +5877,28 @@ mod tests {
                 assert_eq!(event["event"], "pane.agent_status_changed");
             }
         }
+    }
+
+    #[test]
+    fn snapshot_etag_is_stable_and_content_sensitive() {
+        let first = snapshot_etag(b"{\"a\":1}");
+        assert_eq!(first, snapshot_etag(b"{\"a\":1}"));
+        assert_ne!(first, snapshot_etag(b"{\"a\":2}"));
+        assert!(first.starts_with("W/\""));
+    }
+
+    #[test]
+    fn if_none_match_accepts_weak_lists_and_wildcards() {
+        let etag = snapshot_etag(b"payload");
+        assert!(if_none_match_matches(&etag, &etag));
+        let strong = etag.strip_prefix("W/").unwrap();
+        assert!(if_none_match_matches(strong, &etag));
+        assert!(if_none_match_matches(
+            &format!("W/\"other\", {strong}"),
+            &etag
+        ));
+        assert!(if_none_match_matches("*", &etag));
+        assert!(!if_none_match_matches("W/\"other\"", &etag));
     }
 
     #[test]

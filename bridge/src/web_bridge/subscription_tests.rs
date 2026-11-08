@@ -32,6 +32,10 @@ impl FakeDaemon {
                 Err(err) => panic!("accept failed: {err}"),
             }
         };
+        // BSD-derived platforms inherit O_NONBLOCK from a non-blocking
+        // listener, so a connected socket must be returned to blocking mode
+        // before the read timeout below can make it wait for a request.
+        socket.set_nonblocking(false).unwrap();
         socket
             .set_read_timeout(Some(Duration::from_secs(5)))
             .unwrap();

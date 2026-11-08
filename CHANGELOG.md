@@ -8,7 +8,17 @@
 
 ### Changed
 
+- Compress API responses above 1 KiB and skip unchanged snapshot refreshes with weak `ETag`
+  validation plus client-side content fingerprints. Idle refresh cycles and event-driven refreshes
+  no longer rebuild the whole app tree when the snapshot payload did not change.
+
 ### Fixed
+
+- Restore macOS event delivery by setting the daemon subscription read timeout before the handshake
+  acknowledgement. `/ws/events` and `/ws/activity` no longer fail with `EINVAL` when the daemon
+  closes a subscription socket right after acknowledging it.
+- Return sockets accepted from non-blocking test listeners to blocking mode so the bridge test suite
+  passes on macOS.
 
 ### Removed
 
