@@ -144,7 +144,10 @@ import {
   trapFocusWithin,
   useFocusReturn,
 } from "./overlayFocus";
-import { createSnapshotRefreshController } from "./refreshCoordinator";
+import {
+  createSnapshotRefreshController,
+  createSnapshotRefreshScheduler,
+} from "./refreshCoordinator";
 import { commitSnapshotState, snapshotFingerprint } from "./snapshotState";
 import { TerminalView } from "./TerminalView";
 import {
@@ -4523,6 +4526,8 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
 }
 
 const SNAPSHOT_REFRESH_INTERVAL_MS = 10000;
+/** Trailing delay that coalesces structural event bursts into one refresh. */
+const SNAPSHOT_EVENT_REFRESH_DEBOUNCE_MS = 150;
 const SHARED_SELECTION_SETTLE_TIMEOUT_MS = 2000;
 const NOTES_REFRESH_INTERVAL_MS = 15000;
 const MAX_PENDING_CREATED_PANE_NOTES = 32;
@@ -4683,7 +4688,16 @@ export function BridgeConnectionController({
         );
       },
     });
-    const refresh = () => refreshController.request();
+    const refreshScheduler = createSnapshotRefreshScheduler(
+      () => refreshController.request(),
+      SNAPSHOT_EVENT_REFRESH_DEBOUNCE_MS,
+      {
+        schedule: (callback, delayMs) => window.setTimeout(callback, delayMs),
+        cancel: (handle) => window.clearTimeout(handle),
+      },
+    );
+    const refreshNow = () => refreshScheduler.now();
+    const refreshSoon = () => refreshScheduler.soon();
     const requestActivityResync = () => {
       const currentRef = connectionRefs.current[runtime.id];
       if (!currentRef) {
@@ -4691,17 +4705,17 @@ export function BridgeConnectionController({
       }
       currentRef.activityGeneration += 1;
       currentRef.resyncBarrierGeneration = currentRef.activityGeneration;
-      refresh();
+      refreshNow();
     };
 
-    refresh();
+    refreshNow();
     const refreshOffset = refreshOffsetRef.current;
     intervalStartTimer = window.setTimeout(() => {
-      refresh();
-      interval = window.setInterval(refresh, SNAPSHOT_REFRESH_INTERVAL_MS);
+      refreshNow();
+      interval = window.setInterval(refreshNow, SNAPSHOT_REFRESH_INTERVAL_MS);
     }, SNAPSHOT_REFRESH_INTERVAL_MS + refreshOffset);
 
-    const events = openEventsSocket(wsUrlRef.current, "/ws/events", refresh);
+    const events = openEventsSocket(wsUrlRef.current, "/ws/events", refreshSoon);
     const activity = openEventsSocket(
       wsUrlRef.current,
       "/ws/activity",
@@ -4741,7 +4755,7 @@ export function BridgeConnectionController({
           requestActivityResync();
         }
       },
-      { onOpen: refresh },
+      { onOpen: refreshNow },
     );
     const uiEvents = openEventsSocket(
       wsUrlRef.current,
@@ -4784,7 +4798,7 @@ export function BridgeConnectionController({
           if (followSharedSelectionRef.current) {
             onPaneSelection(runtime.id, paneId, pane?.workspace_id);
           }
-          refresh();
+          refreshNow();
           return;
         }
         if (isNotesChangedEvent(event)) {
@@ -4799,13 +4813,14 @@ export function BridgeConnectionController({
           onAgentPinsChangedRef.current(runtime.id);
           return;
         }
-        refresh();
+        refreshSoon();
       },
       { onOpen: () => onAgentActivityChangedRef.current(runtime.id) },
     );
 
     return () => {
       disposed = true;
+      refreshScheduler.dispose();
       events?.close();
       activity?.close();
       uiEvents?.close();

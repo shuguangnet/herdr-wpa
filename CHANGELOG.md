@@ -8,6 +8,14 @@
 
 ### Changed
 
+- Share one upstream Herdr structural event subscription across every browser client instead of
+  opening a subscription and reader thread per client. Clients that fall behind the shared stream
+  now receive `resync_required` instead of silently missing events.
+- Coalesce structural event bursts into one trailing snapshot refresh (150 ms) so agent status flaps
+  no longer issue back-to-back full `/api/snapshot` requests.
+- Skip re-rendering a mounted terminal when a snapshot refresh does not change that pane's identity
+  or terminal settings.
+
 ### Fixed
 
 ### Removed

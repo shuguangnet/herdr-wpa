@@ -12,7 +12,7 @@ import {
   TextCursorInput,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { ChangeEvent, ClipboardEvent, DragEvent, KeyboardEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { autosizeMobileCommandTextarea } from "./mobileCommandTextarea";
 import {
@@ -168,7 +168,7 @@ function createGhosttyTerminalRenderer(fontSizePx: number, cursorBlink: boolean)
   return new GhosttyRenderer(fontSizePx, cursorBlink);
 }
 
-export function TerminalView({
+function TerminalViewComponent({
   bridgeId,
   pane,
   connectionKey,
@@ -2143,3 +2143,35 @@ function uploadConflictMessage(conflict: UploadConflictState) {
     ? `${conflict.name} already exists at ${conflict.path}.`
     : `${conflict.name} already exists.`;
 }
+
+export type TerminalViewProps = Props;
+
+/**
+ * Snapshot refreshes replace every `PaneInfo` object even when the terminal
+ * did not change. Compare the props that actually drive the renderer/socket so
+ * an unrelated snapshot update does not re-render a mounted terminal.
+ */
+export function areTerminalViewPropsEqual(prev: Props, next: Props) {
+  if ((prev.pane?.pane_id ?? null) !== (next.pane?.pane_id ?? null)) {
+    return false;
+  }
+  if ((prev.pane?.terminal_id ?? null) !== (next.pane?.terminal_id ?? null)) {
+    return false;
+  }
+  const keys = Object.keys(prev) as (keyof Props)[];
+  if (Object.keys(next).length !== keys.length) {
+    return false;
+  }
+  for (const key of keys) {
+    if (key === "pane") {
+      continue;
+    }
+    if (!Object.is(prev[key], next[key])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export const TerminalView = memo(TerminalViewComponent, areTerminalViewPropsEqual);
+TerminalView.displayName = "TerminalView";

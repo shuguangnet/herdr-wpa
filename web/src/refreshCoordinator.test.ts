@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSnapshotRefreshController } from "./refreshCoordinator";
+import { createSnapshotRefreshController, createSnapshotRefreshScheduler } from "./refreshCoordinator";
 
 type Deferred<T> = {
   promise: Promise<T>;
@@ -106,5 +106,90 @@ describe("createSnapshotRefreshController", () => {
     await flushRefresh();
 
     expect(applied).toEqual([]);
+  });
+});
+
+function manualTimers() {
+  let nextHandle = 1;
+  const pending = new Map<number, () => void>();
+  return {
+    schedule: (callback: () => void) => {
+      const handle = nextHandle++;
+      pending.set(handle, callback);
+      return handle;
+    },
+    cancel: (handle: number) => {
+      pending.delete(handle);
+    },
+    runAll: () => {
+      for (const [handle, callback] of [...pending]) {
+        pending.delete(handle);
+        callback();
+      }
+    },
+    pendingCount: () => pending.size,
+  };
+}
+
+describe("createSnapshotRefreshScheduler", () => {
+  it("coalesces a burst of events into one trailing refresh", () => {
+    const timers = manualTimers();
+    let refreshes = 0;
+    const scheduler = createSnapshotRefreshScheduler(() => {
+      refreshes += 1;
+    }, 150, timers);
+
+    scheduler.soon();
+    scheduler.soon();
+    scheduler.soon();
+    expect(refreshes).toBe(0);
+    expect(timers.pendingCount()).toBe(1);
+
+    timers.runAll();
+    expect(refreshes).toBe(1);
+    expect(timers.pendingCount()).toBe(0);
+  });
+
+  it("runs immediately and cancels the scheduled refresh", () => {
+    const timers = manualTimers();
+    let refreshes = 0;
+    const scheduler = createSnapshotRefreshScheduler(() => {
+      refreshes += 1;
+    }, 150, timers);
+
+    scheduler.soon();
+    scheduler.now();
+    expect(refreshes).toBe(1);
+    expect(timers.pendingCount()).toBe(0);
+
+    timers.runAll();
+    expect(refreshes).toBe(1);
+  });
+
+  it("schedules again after the trailing refresh ran", () => {
+    const timers = manualTimers();
+    let refreshes = 0;
+    const scheduler = createSnapshotRefreshScheduler(() => {
+      refreshes += 1;
+    }, 150, timers);
+
+    scheduler.soon();
+    timers.runAll();
+    scheduler.soon();
+    timers.runAll();
+    expect(refreshes).toBe(2);
+  });
+
+  it("drops a pending refresh on dispose", () => {
+    const timers = manualTimers();
+    let refreshes = 0;
+    const scheduler = createSnapshotRefreshScheduler(() => {
+      refreshes += 1;
+    }, 150, timers);
+
+    scheduler.soon();
+    scheduler.dispose();
+    timers.runAll();
+    expect(refreshes).toBe(0);
   });
 });

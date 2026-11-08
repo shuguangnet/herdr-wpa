@@ -79,7 +79,8 @@ describe("BridgeConnectionController sockets", () => {
       reconnected[1].dispatchEvent(new MessageEvent("message", {
         data: JSON.stringify({ type: "resync_required", reason: "event subscription established" }),
       }));
-      await Promise.resolve();
+      // Event-driven refreshes are coalesced with a trailing debounce.
+      await vi.advanceTimersByTimeAsync(200);
     });
     expect(fetchMock).toHaveBeenCalledTimes(previousRequests + 1);
     expect(connectionRefs.current["bridge-a"].snapshot?.selected_pane_id).toBe("changed-while-disconnected");

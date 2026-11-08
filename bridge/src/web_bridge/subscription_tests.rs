@@ -112,6 +112,7 @@ fn test_state(api_path: PathBuf) -> BridgeState {
         notes: Arc::new(NotesManager::for_test(api_path.with_extension("notes"), "test").unwrap()),
         ui_event_tx: tokio::sync::broadcast::channel(256).0,
         activity_tx: tokio::sync::broadcast::channel(512).0,
+        events_tx: tokio::sync::broadcast::channel(512).0,
         upload_dir: api_path.with_extension("uploads"),
     }
 }
@@ -122,16 +123,18 @@ async fn test_events_handler(ws: WebSocketUpgrade, State(state): State<BridgeSta
 }
 
 #[tokio::test]
-async fn events_socket_closes_on_eof_error_or_invalid_json_and_reconnects() {
+async fn event_forwarder_recovers_and_keeps_clients_connected() {
     for failure in ["eof", "events_lost", "invalid_json"] {
         let daemon = FakeDaemon::new();
         let state = test_state(daemon.path.clone());
         let app = Router::new()
             .route("/ws", get(test_events_handler))
-            .with_state(state);
+            .with_state(state.clone());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        spawn_event_forwarder(state);
+
         let (release_tx, release_rx) = mpsc::channel();
         let daemon_thread = thread::spawn(move || {
             let mut stream = daemon.subscribe();
@@ -168,36 +171,30 @@ async fn events_socket_closes_on_eof_error_or_invalid_json_and_reconnects() {
             .unwrap();
         let ready: serde_json::Value = serde_json::from_str(ready.to_text().unwrap()).unwrap();
         assert_eq!(ready["type"], "resync_required");
-        let closed = tokio::time::timeout(Duration::from_secs(3), client.next())
-            .await
-            .expect("events WebSocket remained open after upstream failure");
-        assert!(
-            matches!(
-                closed,
-                Some(Ok(tokio_tungstenite::tungstenite::Message::Close(_)))
-            ),
-            "{failure}: {closed:?}"
-        );
         if failure != "eof" {
             release_tx.send(()).unwrap();
         }
-        let (mut client, _) = tokio_tungstenite::connect_async(format!("ws://{address}/ws"))
-            .await
-            .unwrap();
-        let ready = tokio::time::timeout(Duration::from_secs(3), client.next())
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap();
-        let ready: serde_json::Value = serde_json::from_str(ready.to_text().unwrap()).unwrap();
-        assert_eq!(ready["type"], "resync_required");
-        let event = tokio::time::timeout(Duration::from_secs(3), client.next())
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap();
-        let event: serde_json::Value = serde_json::from_str(event.to_text().unwrap()).unwrap();
-        assert_eq!(event["data"]["workspace_id"], "recovered");
+
+        let mut saw_resync = false;
+        let mut recovered = false;
+        for _ in 0..10 {
+            let message = tokio::time::timeout(Duration::from_secs(5), client.next())
+                .await
+                .unwrap_or_else(|_| panic!("{failure}: forwarder did not recover"))
+                .unwrap()
+                .unwrap();
+            let value: serde_json::Value =
+                serde_json::from_str(message.to_text().unwrap()).unwrap();
+            if value["type"] == "resync_required" {
+                saw_resync = true;
+            }
+            if value["data"]["workspace_id"] == "recovered" {
+                recovered = true;
+                break;
+            }
+        }
+        assert!(saw_resync, "{failure}: clients must be asked to resnapshot");
+        assert!(recovered, "{failure}: recovered event was not forwarded");
         daemon_thread.join().unwrap();
         server.abort();
     }
@@ -308,30 +305,39 @@ fn activity_reconnect_rebuilds_baseline_and_requests_browser_resync() {
 }
 
 #[tokio::test]
-async fn idle_browser_disconnect_releases_upstream_subscription() {
-    for graceful_close in [false, true] {
-        let daemon = FakeDaemon::new();
-        let state = test_state(daemon.path.clone());
-        let app = Router::new()
-            .route("/ws", get(test_events_handler))
-            .with_state(state);
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-        let daemon_task = tokio::task::spawn_blocking(move || {
-            let mut stream = daemon.subscribe();
-            stream
-                .set_read_timeout(Some(Duration::from_secs(3)))
-                .unwrap();
-            let mut byte = [0];
-            // Send no events: the bridge must release this reader on its own.
-            assert_eq!(
-                stream
-                    .read(&mut byte)
-                    .expect("upstream subscription leaked after idle browser disconnect"),
-                0
-            );
-        });
+async fn browser_clients_share_one_upstream_subscription() {
+    let daemon = FakeDaemon::new();
+    let state = test_state(daemon.path.clone());
+    let app = Router::new()
+        .route("/ws", get(test_events_handler))
+        .with_state(state.clone());
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    spawn_event_forwarder(state);
+
+    let (stop_tx, stop_rx) = mpsc::channel::<()>();
+    // The fake daemon accepts exactly one upstream subscription. A second
+    // browser client must join the shared broadcast instead of dialing again.
+    let daemon_task = tokio::task::spawn_blocking(move || {
+        let mut stream = daemon.subscribe();
+        stop_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_millis(300)))
+            .unwrap();
+        let mut byte = [0];
+        let read = stream.read(&mut byte);
+        assert!(
+            matches!(
+                read,
+                Err(ref err) if matches!(err.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut)
+            ),
+            "shared upstream subscription closed after browsers disconnected: {read:?}"
+        );
+    });
+
+    let mut clients = Vec::new();
+    for _ in 0..2 {
         let (mut client, _) = tokio_tungstenite::connect_async(format!("ws://{address}/ws"))
             .await
             .unwrap();
@@ -342,14 +348,16 @@ async fn idle_browser_disconnect_releases_upstream_subscription() {
             .unwrap();
         let ready: serde_json::Value = serde_json::from_str(ready.to_text().unwrap()).unwrap();
         assert_eq!(ready["type"], "resync_required");
-        if graceful_close {
-            client.close(None).await.unwrap();
-        }
-        drop(client);
-        tokio::time::timeout(Duration::from_secs(5), daemon_task)
-            .await
-            .unwrap()
-            .unwrap();
-        server.abort();
+        clients.push(client);
     }
+    for mut client in clients {
+        client.close(None).await.unwrap();
+    }
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    stop_tx.send(()).unwrap();
+    tokio::time::timeout(Duration::from_secs(5), daemon_task)
+        .await
+        .unwrap()
+        .unwrap();
+    server.abort();
 }

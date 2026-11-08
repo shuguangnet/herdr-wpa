@@ -7,6 +7,50 @@ export type SnapshotRefreshControllerOptions<TSnapshot> = {
   getBarrierGeneration: () => number;
 };
 
+export type SnapshotRefreshSchedulerTimers = {
+  schedule: (callback: () => void, delayMs: number) => number;
+  cancel: (handle: number) => void;
+};
+
+/**
+ * Coalesces bridge event traffic into at most one trailing snapshot refresh.
+ * Structural event bursts (agent status flaps, layout churn) previously issued
+ * one full `/api/snapshot` request per event.
+ */
+export function createSnapshotRefreshScheduler(
+  request: () => void,
+  debounceMs: number,
+  timers: SnapshotRefreshSchedulerTimers,
+) {
+  let pending: number | null = null;
+
+  const cancelPending = () => {
+    if (pending !== null) {
+      timers.cancel(pending);
+      pending = null;
+    }
+  };
+
+  return {
+    /** Schedules a trailing refresh, keeping any refresh already scheduled. */
+    soon() {
+      if (pending !== null) {
+        return;
+      }
+      pending = timers.schedule(() => {
+        pending = null;
+        request();
+      }, debounceMs);
+    },
+    /** Refreshes immediately, replacing any scheduled trailing refresh. */
+    now() {
+      cancelPending();
+      request();
+    },
+    dispose: cancelPending,
+  };
+}
+
 export function createSnapshotRefreshController<TSnapshot>({
   fetchSnapshot,
   applySnapshot,

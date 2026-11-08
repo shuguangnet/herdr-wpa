@@ -89,6 +89,7 @@ const TERMINAL_OUTPUT_GZIP_ACKNOWLEDGEMENT: &str =
 const DAEMON_STATUS_TIMEOUT: Duration = Duration::from_secs(5);
 const ACTIVITY_WATCHER_INITIAL_BACKOFF: Duration = Duration::from_secs(1);
 const ACTIVITY_WATCHER_MAX_BACKOFF: Duration = Duration::from_secs(30);
+const EVENTS_RESUBSCRIBE_DEBOUNCE: Duration = Duration::from_millis(100);
 const ACTIVITY_RESUBSCRIBE_DEBOUNCE: Duration = Duration::from_millis(100);
 const ACTIVITY_READ_TIMEOUT: Duration = Duration::from_millis(250);
 const MANAGED_AGENT_SHELL_SETTLE_DELAY: Duration = Duration::from_millis(100);
@@ -123,6 +124,9 @@ struct BridgeState {
     notes: Arc<NotesManager>,
     ui_event_tx: tokio::sync::broadcast::Sender<String>,
     activity_tx: tokio::sync::broadcast::Sender<ActivityMessage>,
+    /// Structural daemon events shared by every connected browser client.
+    /// One upstream subscription is fanned out instead of one per client.
+    events_tx: tokio::sync::broadcast::Sender<String>,
     upload_dir: PathBuf,
 }
 
@@ -1029,9 +1033,11 @@ async fn run_server(options: BridgeOptions) -> io::Result<()> {
         notes,
         ui_event_tx: tokio::sync::broadcast::channel(256).0,
         activity_tx: tokio::sync::broadcast::channel(512).0,
+        events_tx: tokio::sync::broadcast::channel(512).0,
         upload_dir: options.upload_dir.clone(),
     };
     spawn_agent_activity_watcher(state.clone());
+    spawn_event_forwarder(state.clone());
     let agent_activity_routes = Router::new().route(
         "/api/agent-activity",
         get(agent_activity_list_handler).options(preflight_handler),
@@ -3489,16 +3495,13 @@ where
 }
 
 async fn handle_events_socket(socket: WebSocket, state: BridgeState) {
-    let api = state.api.clone();
+    let mut event_rx = state.events_tx.subscribe();
     let mut ui_event_rx = state.ui_event_tx.subscribe();
-    let subscribed = tokio::task::spawn_blocking(move || open_event_subscription(api)).await;
-    let Ok(Ok(mut event_rx)) = subscribed else {
-        return;
-    };
 
     let (mut ws_sender, mut ws_receiver) = socket.split();
-    // WebSocket open precedes the upstream ack. Request a fresh snapshot only
-    // after subscribing so mutations during connection setup cannot be missed.
+    // Ask for a fresh snapshot on connect. The shared forwarder also
+    // broadcasts this message whenever it (re)establishes its subscription, so
+    // events that arrived during setup cannot be missed.
     if send_websocket_message(
         &mut ws_sender,
         Message::Text(
@@ -3526,17 +3529,34 @@ async fn handle_events_socket(socket: WebSocket, state: BridgeState) {
                 }
             }
             event = event_rx.recv() => {
-                let Some(event) = event else {
-                    let _ = send_websocket_message(&mut ws_sender, Message::Close(None), "events").await;
-                    break;
+                let text = match event {
+                    Ok(text) => text,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        // This client missed structural events; make it resnapshot
+                        // instead of silently applying a partial view.
+                        if send_websocket_message(
+                            &mut ws_sender,
+                            Message::Text(
+                                r#"{"type":"resync_required","reason":"event stream lagged"}"#.into(),
+                            ),
+                            "events",
+                        )
+                        .await
+                        .is_err()
+                        {
+                            break;
+                        }
+                        continue;
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 };
-                if event_may_close_terminal_session(&event) {
+                if event_may_close_terminal_session(&text) {
                     let prune_state = state.clone();
                     tokio::task::spawn_blocking(move || prune_detached_terminal_sessions(&prune_state));
                 }
                 if send_websocket_message(
                     &mut ws_sender,
-                    Message::Text(event.into()),
+                    Message::Text(text.into()),
                     "events",
                 )
                 .await
@@ -4533,16 +4553,16 @@ fn check_subscription_value(value: &serde_json::Value) -> Result<(), BridgeError
     Ok(())
 }
 
-fn open_event_subscription(
+fn open_structural_event_stream(
     api: ApiClient,
-) -> Result<tokio::sync::mpsc::UnboundedReceiver<String>, BridgeError> {
+) -> Result<herdr_compat::api::client::EventStream, BridgeError> {
     let request = Request {
         id: "herdr-web:events".to_string(),
         method: Method::EventsSubscribe(EventsSubscribeParams {
             subscriptions: structural_event_subscriptions(),
         }),
     };
-    let (ack, mut stream) = api.subscribe_value(&request, Some(ACTIVITY_READ_TIMEOUT))?;
+    let (ack, stream) = api.subscribe_value(&request, Some(ACTIVITY_READ_TIMEOUT))?;
     let response = herdr_compat::api::client::parse_response_value(ack)?;
     if !matches!(response.result, ResponseResult::SubscriptionStarted {}) {
         return Err(BridgeError::Protocol(format!(
@@ -4550,31 +4570,56 @@ fn open_event_subscription(
             response.result
         )));
     }
+    Ok(stream)
+}
 
-    let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel();
-    thread::spawn(move || {
-        while !event_tx.is_closed() {
-            match stream.next_value() {
-                Ok(Some(event)) => {
-                    if let Err(err) = check_subscription_value(&event) {
-                        warn!(error = %err, "herdr-web event subscription failed");
-                        break;
-                    }
-                    if event_tx.send(event.to_string()).is_err() {
-                        break;
-                    }
-                }
-                Ok(None) => break,
-                Err(err) if is_timeout_error(&err) => continue,
-                Err(err) => {
-                    warn!(error = %err, "herdr-web event subscription failed");
-                    break;
-                }
+/// Owns the single upstream structural subscription and fans its events out to
+/// every browser client through `events_tx`.
+fn spawn_event_forwarder(state: BridgeState) {
+    if let Err(err) = thread::Builder::new()
+        .name("herdr-web-events".to_string())
+        .spawn(move || event_forwarder_loop(state))
+    {
+        warn!(error = %err, "failed to start herdr-web event forwarder");
+    }
+}
+
+fn event_forwarder_loop(state: BridgeState) {
+    let mut backoff = ACTIVITY_WATCHER_INITIAL_BACKOFF;
+    loop {
+        match run_event_forwarder(&state) {
+            Ok(()) => {
+                backoff = ACTIVITY_WATCHER_INITIAL_BACKOFF;
+            }
+            Err(err) => {
+                warn!(error = %err, "herdr-web event forwarder will retry");
+                thread::sleep(backoff);
+                backoff = (backoff * 2).min(ACTIVITY_WATCHER_MAX_BACKOFF);
             }
         }
-    });
+        thread::sleep(EVENTS_RESUBSCRIBE_DEBOUNCE);
+    }
+}
 
-    Ok(event_rx)
+fn run_event_forwarder(state: &BridgeState) -> Result<(), BridgeError> {
+    let api = state.api.clone();
+    let mut stream = open_structural_event_stream(api)?;
+    // Subscriptions are live-only, so every client resnapshots once the shared
+    // subscription is ready. Bursts are coalesced client-side.
+    let _ = state.events_tx.send(
+        r#"{"type":"resync_required","reason":"event subscription established"}"#.to_string(),
+    );
+    loop {
+        match stream.next_value() {
+            Ok(Some(event)) => {
+                check_subscription_value(&event)?;
+                let _ = state.events_tx.send(event.to_string());
+            }
+            Ok(None) => return Ok(()),
+            Err(err) if is_timeout_error(&err) => continue,
+            Err(err) => return Err(err.into()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
