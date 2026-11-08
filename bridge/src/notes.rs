@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{self, ErrorKind, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use herdr_compat::api::schema::PaneInfo;
 use serde::{Deserialize, Serialize};
@@ -26,6 +27,10 @@ pub struct NotesManager {
     observations_path: PathBuf,
     observations_lock_path: PathBuf,
     session_key: String,
+    /// Pane set last observed by `observe_panes`. Snapshot polling calls it on
+    /// every interval and per client; an unchanged pane set does not need the
+    /// observation store lock and JSON round-trip.
+    observed_signature: Arc<Mutex<Option<String>>>,
 }
 
 #[derive(Debug)]
@@ -219,6 +224,7 @@ impl NotesManager {
             observations_path: notes_dir.join("pane-observations.json"),
             observations_lock_path: notes_dir.join("pane-observations.lock"),
             session_key: session_key(),
+            observed_signature: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -231,6 +237,7 @@ impl NotesManager {
             observations_path: dir.join("pane-observations.json"),
             observations_lock_path: dir.join("pane-observations.lock"),
             session_key: session_key.to_string(),
+            observed_signature: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -438,8 +445,12 @@ impl NotesManager {
     }
 
     pub fn observe_panes(&self, panes: &[PaneInfo]) -> Result<bool, NotesError> {
+        let signature = pane_observation_signature(panes);
+        if self.observation_signature_matches(&signature) {
+            return Ok(false);
+        }
         let observed_ids: HashSet<&str> = panes.iter().map(|pane| pane.pane_id.as_str()).collect();
-        self.with_observation_store(|store, now, recovered| {
+        let changed = self.with_observation_store(|store, now, recovered| {
             let mut changed = false;
             let new_confidence = if recovered {
                 GenerationConfidence::RecoveredUnknown
@@ -469,7 +480,28 @@ impl NotesManager {
             }
             changed |= prune_observations(store, &now);
             Ok(changed)
-        })
+        })?;
+        self.remember_observation_signature(signature);
+        Ok(changed)
+    }
+
+    fn observation_signature_matches(&self, signature: &str) -> bool {
+        self.observed_signature
+            .lock()
+            .map(|guard| guard.as_deref() == Some(signature))
+            .unwrap_or(false)
+    }
+
+    fn remember_observation_signature(&self, signature: String) {
+        if let Ok(mut guard) = self.observed_signature.lock() {
+            *guard = Some(signature);
+        }
+    }
+
+    fn forget_observation_signature(&self) {
+        if let Ok(mut guard) = self.observed_signature.lock() {
+            *guard = None;
+        }
     }
 
     pub fn update_for_pane_move(
@@ -539,6 +571,9 @@ impl NotesManager {
             })
             .ok()
             .flatten();
+        // The call above writes the observation store directly; the cached
+        // signature no longer reflects it.
+        self.forget_observation_signature();
         NoteAttachment {
             kind: "pane".to_string(),
             pane_id: pane.pane_id.clone(),
@@ -719,6 +754,20 @@ fn default_observation_store() -> ObservationStore {
         next_generation_number: 1,
         observations: Vec::new(),
     }
+}
+
+fn pane_observation_signature(panes: &[PaneInfo]) -> String {
+    let mut entries: Vec<String> = panes
+        .iter()
+        .map(|pane| {
+            format!(
+                "{}|{}|{}|{}",
+                pane.pane_id, pane.terminal_id, pane.workspace_id, pane.tab_id
+            )
+        })
+        .collect();
+    entries.sort_unstable();
+    entries.join("\n")
 }
 
 fn ensure_observation_for_pane(
@@ -1014,6 +1063,27 @@ fn default_notes_dir() -> PathBuf {
 mod tests {
     use super::*;
     use herdr_compat::api::schema::AgentStatus;
+
+    #[test]
+    fn observe_panes_skips_unchanged_pane_sets() {
+        let dir = test_dir("observe_panes_skips_unchanged_pane_sets");
+        let manager = NotesManager::for_test(dir, "session:default").unwrap();
+        let panes = vec![
+            pane("p1", "t1", "w1", "tab1", 1),
+            pane("p2", "t2", "w1", "tab1", 1),
+        ];
+        assert!(manager.observe_panes(&panes).unwrap());
+
+        // The same pane set in a different order must not touch the store.
+        let reordered = vec![panes[1].clone(), panes[0].clone()];
+        assert!(!manager.observe_panes(&reordered).unwrap());
+
+        // Changing the terminal behind a pane invalidates the cached signature.
+        let mut moved = panes.clone();
+        moved[0].terminal_id = "t9".to_string();
+        assert!(manager.observe_panes(&moved).unwrap());
+        assert!(!manager.observe_panes(&moved).unwrap());
+    }
 
     #[test]
     fn creates_and_lists_linked_note() {

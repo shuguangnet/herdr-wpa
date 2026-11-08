@@ -163,6 +163,8 @@ type TerminalRendererReady = {
 };
 const MAX_UPLOAD_FILES = 8;
 const DEBUG_TERMINAL_RECONNECT = false;
+/** Trailing delay that collapses resize-observer churn into one PTY resize. */
+const TERMINAL_RESIZE_DEBOUNCE_MS = 120;
 
 function createGhosttyTerminalRenderer(fontSizePx: number, cursorBlink: boolean) {
   return new GhosttyRenderer(fontSizePx, cursorBlink);
@@ -739,10 +741,30 @@ function TerminalViewComponent({
       }
     };
 
-    const sendResize = (size: TerminalSize) => {
-      if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "resize", cols: size.cols, rows: size.rows }));
+    let resizeTimer: number | null = null;
+    let pendingResize: TerminalSize | null = null;
+    const flushResize = () => {
+      resizeTimer = null;
+      const size = pendingResize;
+      pendingResize = null;
+      if (!size || socket?.readyState !== WebSocket.OPEN) {
+        return;
       }
+      socket.send(JSON.stringify({ type: "resize", cols: size.cols, rows: size.rows }));
+    };
+    const sendResize = (size: TerminalSize, immediate = false) => {
+      pendingResize = size;
+      if (immediate) {
+        if (resizeTimer !== null) {
+          window.clearTimeout(resizeTimer);
+        }
+        flushResize();
+        return;
+      }
+      if (resizeTimer !== null) {
+        return;
+      }
+      resizeTimer = window.setTimeout(flushResize, TERMINAL_RESIZE_DEBOUNCE_MS);
     };
     sendResizeRef.current = sendResize;
 
@@ -831,7 +853,8 @@ function TerminalViewComponent({
         debugReconnect("open", { socketGeneration: currentSocketGeneration });
         const size = ready.measure();
         if (size) {
-          sendResize(size);
+          // The attach handshake needs the current size immediately.
+          sendResize(size, true);
         }
         if (autoFocusRef.current && !desktopCommandComposerRef.current) {
           window.setTimeout(() => {
@@ -1097,6 +1120,11 @@ function TerminalViewComponent({
       clearReconnectTimer();
       clearConnectTimer();
       clearForegroundCoalesceTimer();
+      if (resizeTimer !== null) {
+        window.clearTimeout(resizeTimer);
+        resizeTimer = null;
+      }
+      pendingResize = null;
       closeActiveSocket();
       sendResizeRef.current = () => {};
     };

@@ -3537,3 +3537,13 @@ button {
 .app[data-touch="true"] .terminal-stage:has(.terminal-command-controls) .terminal-selection-sheet {
   bottom: calc(var(--terminal-command-controls-height) + 8px * var(--mobile-controls-scale));
 }
+
+/* Backdrop blur forces an extra compositor pass per frame. Coarse-pointer
+   devices usually have weaker GPUs, so keep the blur for precise pointers and
+   fall back to the tinted background on touch devices. */
+@media (hover: none), (pointer: coarse) {
+  .terminal-overlay,
+  .overlay-scrim {
+    backdrop-filter: none;
+  }
+}

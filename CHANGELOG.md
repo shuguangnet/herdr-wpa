@@ -8,6 +8,13 @@
 
 ### Changed
 
+- Skip the pane-observation store round-trip when `/api/snapshot` sees an unchanged pane set,
+  removing a file lock and JSON read from warm snapshot requests.
+- Collapse resize-observer churn into one debounced PTY resize (120 ms) while still sending the
+  attach size immediately.
+- Pause periodic snapshot polling while the page is hidden and refresh once when it becomes visible.
+- Disable expensive backdrop blur on coarse-pointer (touch) devices.
+
 ### Fixed
 
 ### Removed

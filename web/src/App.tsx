@@ -4688,8 +4688,16 @@ export function BridgeConnectionController({
         );
       },
     });
+    // Background tabs do not need periodic snapshot polling; a visibility
+    // change back to visible requests one immediate refresh instead.
+    const requestRefresh = () => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+      refreshController.request();
+    };
     const refreshScheduler = createSnapshotRefreshScheduler(
-      () => refreshController.request(),
+      requestRefresh,
       SNAPSHOT_EVENT_REFRESH_DEBOUNCE_MS,
       {
         schedule: (callback, delayMs) => window.setTimeout(callback, delayMs),
@@ -4698,6 +4706,12 @@ export function BridgeConnectionController({
     );
     const refreshNow = () => refreshScheduler.now();
     const refreshSoon = () => refreshScheduler.soon();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshNow();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     const requestActivityResync = () => {
       const currentRef = connectionRefs.current[runtime.id];
       if (!currentRef) {
@@ -4820,6 +4834,7 @@ export function BridgeConnectionController({
 
     return () => {
       disposed = true;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       refreshScheduler.dispose();
       events?.close();
       activity?.close();
