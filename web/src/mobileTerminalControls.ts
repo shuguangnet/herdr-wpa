@@ -1,4 +1,4 @@
-type MobileTerminalModifier = "ctrl" | "shift" | "alt";
+export type MobileTerminalModifier = "ctrl" | "shift" | "alt";
 
 interface MobileTerminalModifierOption {
   id: MobileTerminalModifier;
