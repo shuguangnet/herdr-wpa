@@ -150,6 +150,7 @@ import {
 } from "./refreshCoordinator";
 import { commitSnapshotState, snapshotFingerprint } from "./snapshotState";
 import { useKeyboardInset } from "./useKeyboardInset";
+import { useMobileGestures, useMobileGesturesEnabled } from "./mobileGestures";
 import { TerminalView } from "./TerminalView";
 import {
   DEFAULT_TERMINAL_SCREEN_READER_TEXT,
@@ -3253,6 +3254,38 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
       void refreshBridgeSnapshot(runtime, true);
     }
   };
+
+  const mobileGesturesEnabled = useMobileGesturesEnabled();
+  const swipeToAdjacentPane = (step: 1 | -1) => {
+    if (!snapshot || !selectedPane || !selectedRuntime) {
+      return;
+    }
+    const panes = sortPanesForTab(snapshot.panes, selectedPane.tab_id);
+    const index = panes.findIndex((pane) => pane.pane_id === selectedPane.pane_id);
+    if (panes.length > 1 && index >= 0) {
+      const next = panes[(index + step + panes.length) % panes.length];
+      openPane(selectedRuntime.id, next);
+      return;
+    }
+    const tabs = snapshot.tabs.filter((tab) => tab.workspace_id === selectedPane.workspace_id);
+    const tabIndex = tabs.findIndex((tab) => tab.tab_id === selectedPane.tab_id);
+    if (tabIndex < 0 || tabs.length < 2) {
+      return;
+    }
+    const nextTab = tabs[(tabIndex + step + tabs.length) % tabs.length];
+    const nextPane = sortPanesForTab(snapshot.panes, nextTab.tab_id)[0];
+    if (nextPane) {
+      openPane(selectedRuntime.id, nextPane);
+    }
+  };
+
+  useMobileGestures({
+    enabled: isCompactLayout && isTouchInput && mobileGesturesEnabled,
+    onSwipeLeft: () => swipeToAdjacentPane(1),
+    onSwipeRight: () => swipeToAdjacentPane(-1),
+    onBack: () => closeMobileDetail(),
+    onRefresh: () => refreshNow(),
+  });
 
   async function refreshBridgeSnapshot(runtime: BridgeRuntime, setLoading: boolean) {
     const ref = ensureBridgeConnectionRef(connectionRefs, runtime);
