@@ -3858,3 +3858,46 @@ button {
   margin-left: auto;
   padding: 0 10px;
 }
+
+/* Narrow phones: keep 7-column labels legible instead of truncating early. */
+.mobile-key-board .term-key.mobile-key {
+  font-size: clamp(9px, calc(10.5px * var(--mobile-controls-scale)), 15px);
+  letter-spacing: -0.02em;
+}
+
+.bridge-quick-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--mantle);
+  font-size: 12px;
+}
+
+.bridge-quick-switch select {
+  min-width: 160px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--base);
+  color: var(--text);
+}
+
+.mobile-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent) 12%, var(--mantle));
+  color: var(--subtext0);
+  font-size: 12px;
+}
+
+.mobile-hint .term-key {
+  height: 30px;
+  margin-left: auto;
+  padding: 0 10px;
+}

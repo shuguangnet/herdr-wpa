@@ -158,6 +158,8 @@ import { connectionPhase, isDaemonUnavailableError, type TerminalConnectionState
 import { useKeyboardInset } from "./useKeyboardInset";
 import { useOnlineStatus } from "./useOnlineStatus";
 import { useWakeLock } from "./useWakeLock";
+import { useViewportHeight } from "./useViewportHeight";
+import { markMobileHintSeen, readMobileHintSeen, shouldShowMobileHint } from "./mobileHint";
 import { useMobileGestures, useMobileGesturesEnabled } from "./mobileGestures";
 import { TerminalView } from "./TerminalView";
 import {
@@ -1192,7 +1194,14 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
     useState<TerminalConnectionState>("idle");
   const isCompactLayout = useIsCompactLayout();
   const isTouchInput = useIsTouchInput();
+  const viewportHeight = useViewportHeight();
   useWakeLock(isTouchInput);
+  const [showMobileHint, setShowMobileHint] = useState(false);
+  useEffect(() => {
+    if (shouldShowMobileHint(isTouchInput, readMobileHintSeen() ? "1" : null)) {
+      setShowMobileHint(true);
+    }
+  }, [isTouchInput]);
   const showMobileKeyboardHideRefit = isNativeAndroid();
   const connectionRefs = useRef<Record<string, BridgeConnectionRef>>({});
   const isCompactLayoutRef = useRef(isCompactLayout);
@@ -2394,7 +2403,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
     return cells.length > 1 ? cells : null;
   }, [snapshot, selectedPane]);
 
-  const showSplit = !isCompactLayout && splitCells !== null;
+  const showSplit = !isCompactLayout && viewportHeight >= 520 && splitCells !== null;
 
   // Shared navigation mirrors browser focus to Herdr so `active_tab_id` tracks
   // the synchronized view. Independent navigation deliberately leaves Herdr's
@@ -4320,6 +4329,41 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
           hasSnapshot={snapshot !== null}
           onRetry={() => refreshNow()}
         />
+        {isCompactLayout && bridge.enabledRuntimes.length > 1 ? (
+          <div className="bridge-quick-switch">
+            <label>
+              <span className="sr-only">Bridge</span>
+              <select
+                value={selectedBridgeId ?? ""}
+                onChange={(event) => setSelectedBridgeId(event.target.value)}
+              >
+                {bridge.enabledRuntimes.map((runtime) => (
+                  <option key={runtime.id} value={runtime.id}>
+                    {runtime.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        ) : null}
+        {showMobileHint ? (
+          <div className="mobile-hint" role="note">
+            <span>
+              Swipe or use ‹ › to switch panes. Tap Edit on the key board to customize it; Ctrl,
+              Alt and Shift are sticky.
+            </span>
+            <button
+              type="button"
+              className="term-key"
+              onClick={() => {
+                markMobileHintSeen();
+                setShowMobileHint(false);
+              }}
+            >
+              Got it
+            </button>
+          </div>
+        ) : null}
         {mobileNotice ? (
           <div className="mobile-notice" role="status">
             <span>{mobileNotice}</span>

@@ -6,6 +6,11 @@
 
 ### Added
 
+- Add phone conveniences: a scroll-to-bottom button, clipboard paste, two-finger font zoom, a screen
+  wake lock while the page is visible, and in-page agent attention notices with vibration and a
+  title marker.
+- Show a one-time mobile hint, explicit previous/next pane buttons, and a multi-bridge quick switch
+  in the compact header.
 - Replace the fixed mobile quick-key strip with an editable 7-column key board: sticky Ctrl/Alt/Shift
   modifiers, multi-step chords, presets, layout codes, dangerous-key confirmation, hold-to-repeat,
   and optional haptic feedback.
@@ -18,6 +23,10 @@
 
 ### Changed
 
+- Compact the key board to one row while the command field is focused, and space multi-step chord
+  keys by 8 ms so tmux-style prefixes are not merged.
+- Only show the split layout when the viewport is tall enough to use it, and make the PWA manifest
+  use a relative start URL and scope for sub-path installs.
 - Keep the mobile dock and key board editor above the soft keyboard with a `visualViewport` inset,
   and raise primary touch targets to 40 CSS pixels.
 - Add reconnect jitter to browser event sockets so multiple tabs do not retry in lockstep.
@@ -25,6 +34,10 @@
   the legacy quick-key strip as an opt-out from the editable key board.
 
 ### Fixed
+
+- Report the bridge error body with snapshot failures so the mobile status bar can distinguish a
+  missing Herdr daemon from an unreachable bridge.
+- Stop the mobile key board from swallowing the next click after a cancelled touch press.
 
 ### Removed
 

@@ -1740,6 +1740,7 @@ export function TerminalCommandControls({
   const [moreKeysOpen, setMoreKeysOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [commandInputFocused, setCommandInputFocused] = useState(false);
+  const chordTimersRef = useRef<number[]>([]);
   const keyBoard = useKeyBoard();
   const [keyPadEditorOpen, setKeyPadEditorOpen] = useState(false);
   const [composerModifiers, setComposerModifiers] = useState<MobileTerminalModifier[]>([]);
@@ -1826,6 +1827,16 @@ export function TerminalCommandControls({
     <MobileTerminalKeyButton key={key.id} terminalKey={key} disabled={disabled}
       repeat={repeat} onInput={onInput} />
   );
+  useEffect(
+    () => () => {
+      for (const timer of chordTimersRef.current) {
+        window.clearTimeout(timer);
+      }
+      chordTimersRef.current = [];
+    },
+    [],
+  );
+
   useLayoutEffect(() => {
     const node = commandInputRef.current;
     if (fieldKey > 0 && node) {

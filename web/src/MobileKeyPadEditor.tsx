@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import {
   BOARD_COLS,
+  DEFAULT_BOARD,
   PRESETS,
   addRow,
   boardKeyLabel,
@@ -214,6 +215,10 @@ export function MobileKeyPadEditor({ onSave, onClose }: Props) {
           const anchor = own[index] === -1 ? null : own[index];
           const isAnchor = anchor === index;
           const label = isAnchor && key ? boardKeyLabel(key) : "";
+          const ownerLabel =
+            !isAnchor && anchor !== null && draft.cells[anchor]
+              ? boardKeyLabel(draft.cells[anchor]!)
+              : null;
           return (
             <button
               key={index}
@@ -224,9 +229,11 @@ export function MobileKeyPadEditor({ onSave, onClose }: Props) {
               aria-label={
                 isAnchor && key
                   ? `Edit ${label}`
-                  : `Add a key at row ${Math.floor(index / BOARD_COLS) + 1} column ${
-                      (index % BOARD_COLS) + 1
-                    }`
+                  : ownerLabel
+                    ? `Select ${ownerLabel}`
+                    : `Add a key at row ${Math.floor(index / BOARD_COLS) + 1} column ${
+                        (index % BOARD_COLS) + 1
+                      }`
               }
               onClick={() => selectCell(index)}
             >
@@ -385,7 +392,19 @@ export function MobileKeyPadEditor({ onSave, onClose }: Props) {
             setCodeError(null);
           }}
         >
-          Reset
+          Discard
+        </button>
+        <button
+          type="button"
+          className="term-key"
+          onClick={() => {
+            setDraft(DEFAULT_BOARD);
+            setSelected(null);
+            setKeyDraft(null);
+            setError(null);
+          }}
+        >
+          Default layout
         </button>
         <button
           type="button"
