@@ -55,6 +55,7 @@ use crate::launcher_presets::{
     LauncherPresetLaunch, LauncherPresetStore, ManagedAgentKind, ResolvedLauncherPreset,
     MAX_LABEL_BYTES,
 };
+use crate::metrics::{BridgeMetrics, BridgeMetricsSnapshot};
 use crate::notes::{
     AttachNoteRequest, CreateNoteRequest, NoteResponse, NotesError, NotesListQuery,
     NotesListResponse, NotesManager, RevisionRequest, UpdateNoteRequest,
@@ -127,6 +128,7 @@ struct BridgeState {
     /// Structural daemon events shared by every connected browser client.
     /// One upstream subscription is fanned out instead of one per client.
     events_tx: tokio::sync::broadcast::Sender<String>,
+    metrics: Arc<BridgeMetrics>,
     upload_dir: PathBuf,
 }
 
@@ -1034,6 +1036,7 @@ async fn run_server(options: BridgeOptions) -> io::Result<()> {
         ui_event_tx: tokio::sync::broadcast::channel(256).0,
         activity_tx: tokio::sync::broadcast::channel(512).0,
         events_tx: tokio::sync::broadcast::channel(512).0,
+        metrics: Arc::new(BridgeMetrics::default()),
         upload_dir: options.upload_dir.clone(),
     };
     spawn_agent_activity_watcher(state.clone());
@@ -1108,6 +1111,10 @@ async fn run_server(options: BridgeOptions) -> io::Result<()> {
         .route(
             "/api/capabilities",
             get(capabilities_handler).options(preflight_handler),
+        )
+        .route(
+            "/api/metrics",
+            get(metrics_handler).options(preflight_handler),
         )
         .route(
             "/api/command",
@@ -2979,8 +2986,10 @@ async fn snapshot_handler(
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| if_none_match_matches(value, &etag));
     if not_modified {
+        state.metrics.record_snapshot(true, 0);
         return Ok((StatusCode::NOT_MODIFIED, snapshot_headers(&etag)).into_response());
     }
+    state.metrics.record_snapshot(false, body.len());
     Ok((snapshot_headers(&etag), body).into_response())
 }
 
@@ -3078,6 +3087,14 @@ async fn capabilities_handler(
         launcher_presets: LauncherPresetsCapability { version: 1 },
         notes: NotesCapability { version: 1 },
     }))
+}
+
+async fn metrics_handler(
+    State(state): State<BridgeState>,
+    headers: HeaderMap,
+) -> Result<Json<BridgeMetricsSnapshot>, BridgeError> {
+    ensure_allowed_request(&headers, &state.request_policy)?;
+    Ok(Json(state.metrics.snapshot()))
 }
 
 async fn agent_activity_list_handler(
@@ -3532,6 +3549,7 @@ async fn handle_events_socket(socket: WebSocket, state: BridgeState) {
                 let text = match event {
                     Ok(text) => text,
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        state.metrics.record_event_lagged_client();
                         // This client missed structural events; make it resnapshot
                         // instead of silently applying a partial view.
                         if send_websocket_message(
@@ -3800,6 +3818,9 @@ async fn handle_terminal_socket(socket: WebSocket, state: BridgeState, query: Te
                     }
                 }
                 output = terminal_rx.recv() => {
+                    if let Ok(TerminalOutput::Bytes(bytes)) = &output {
+                        state.metrics.record_terminal_output_frame(bytes.len());
+                    }
                     if !handle_terminal_output_message(
                         output,
                         &mut ws_sender,
@@ -3827,6 +3848,9 @@ async fn handle_terminal_socket(socket: WebSocket, state: BridgeState, query: Te
                     }
                 }
                 output = terminal_rx.recv() => {
+                    if let Ok(TerminalOutput::Bytes(bytes)) = &output {
+                        state.metrics.record_terminal_output_frame(bytes.len());
+                    }
                     if !handle_terminal_output_message(
                         output,
                         &mut ws_sender,
@@ -4592,6 +4616,7 @@ fn event_forwarder_loop(state: BridgeState) {
                 backoff = ACTIVITY_WATCHER_INITIAL_BACKOFF;
             }
             Err(err) => {
+                state.metrics.record_event_forwarder_restart();
                 warn!(error = %err, "herdr-web event forwarder will retry");
                 thread::sleep(backoff);
                 backoff = (backoff * 2).min(ACTIVITY_WATCHER_MAX_BACKOFF);
@@ -4614,6 +4639,7 @@ fn run_event_forwarder(state: &BridgeState) -> Result<(), BridgeError> {
             Ok(Some(event)) => {
                 check_subscription_value(&event)?;
                 let _ = state.events_tx.send(event.to_string());
+                state.metrics.record_event_broadcast();
             }
             Ok(None) => return Ok(()),
             Err(err) if is_timeout_error(&err) => continue,

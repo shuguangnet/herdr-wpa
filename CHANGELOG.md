@@ -6,6 +6,10 @@
 
 ### Added
 
+- Add `GET /api/metrics` with bridge-side counters for snapshot requests and bytes, structural
+  event fanout, forwarder restarts, lagging event clients, and terminal output, so browser-side
+  jank can be separated from bridge work.
+
 ### Changed
 
 ### Fixed

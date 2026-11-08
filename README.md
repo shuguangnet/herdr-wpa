@@ -386,6 +386,8 @@ The bridge exposes:
 
 - `GET /api/capabilities`: bridge feature flags and allow-listed browser commands
 - `GET /api/snapshot`: workspaces, tabs, panes, layouts, and shared web selection
+- `GET /api/metrics`: bridge-side counters for snapshot requests/bytes, structural event fanout,
+  forwarder restarts, lagging event clients, and terminal output frames
 - `POST /api/command`: allow-listed workspace/tab/pane commands
 - `POST /api/selection`: bridge-owned selected pane for syncing browser clients
 - `GET /api/notes` and `POST /api/notes...`: bridge-owned pane notes
