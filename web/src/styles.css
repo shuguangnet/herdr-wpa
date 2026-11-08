@@ -3778,3 +3778,33 @@ button {
   margin-left: auto;
   padding: 0 12px;
 }
+
+/* PWA update prompt: visible, non-blocking, never reloads mid-command. */
+.pwa-update-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent) 14%, var(--mantle));
+  color: var(--text);
+  font-size: 12px;
+}
+
+.pwa-update-title {
+  font-weight: 600;
+}
+
+.pwa-update-hint {
+  color: var(--subtext0);
+}
+
+.pwa-update-bar .term-key {
+  height: 32px;
+  padding: 0 12px;
+}
+
+.pwa-update-apply {
+  border-color: var(--accent);
+}

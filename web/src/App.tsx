@@ -150,6 +150,8 @@ import {
 } from "./refreshCoordinator";
 import { commitSnapshotState, snapshotFingerprint } from "./snapshotState";
 import { ConnectionStatusBar } from "./ConnectionStatusBar";
+import { PwaUpdateBar } from "./PwaUpdateBar";
+import { usePwaUpdate } from "./usePwaUpdate";
 import { connectionPhase, isDaemonUnavailableError, type TerminalConnectionState } from "./connectionPhase";
 import { useKeyboardInset } from "./useKeyboardInset";
 import { useOnlineStatus } from "./useOnlineStatus";
@@ -1176,6 +1178,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
   const [refitToken, setRefitToken] = useState(0);
   const [terminalFocusToken, setTerminalFocusToken] = useState(0);
   useKeyboardInset();
+  const pwaUpdate = usePwaUpdate();
   const online = useOnlineStatus();
   const [terminalConnectionState, setTerminalConnectionState] =
     useState<TerminalConnectionState>("idle");
@@ -4233,6 +4236,11 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
           phase={connectionStatusPhase}
           retrying={loadState === "loading"}
           onRetry={() => refreshNow()}
+        />
+        <PwaUpdateBar
+          visible={pwaUpdate.needRefresh}
+          onApply={pwaUpdate.applyUpdate}
+          onDismiss={pwaUpdate.dismiss}
         />
         {showSplit && splitCells ? (
           <SplitGrid
