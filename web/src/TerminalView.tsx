@@ -61,6 +61,7 @@ import {
   isTerminalOutputGzipAcknowledgement,
   terminalOutputGzipSupported,
 } from "./terminalOutputEncoding";
+import { parseTerminalSizeMessage } from "./terminalSize";
 import { DEFAULT_TERMINAL_FONT_SIZE_PX } from "./terminalPrefs";
 import {
   TERMINAL_FOREGROUND_FAST_ATTEMPTS,
@@ -895,6 +896,15 @@ function TerminalViewComponent({
         if (typeof event.data === "string") {
           if (isTerminalOutputGzipAcknowledgement(event.data)) {
             gzipOutputAcknowledged = true;
+            return;
+          }
+          const ptySize = parseTerminalSizeMessage(event.data);
+          if (ptySize) {
+            // Herdr's PTY stays at least this size; render it instead of
+            // squeezing the shared terminal into a narrow phone viewport.
+            ready.renderer.setMinimumSize(ptySize.cols, ptySize.rows);
+            const measured = ready.renderer.fit();
+            sendResize(measured, true);
             return;
           }
           lastCloseReason = parseTerminalCloseReason(event.data) ?? lastCloseReason;

@@ -155,6 +155,8 @@ export type TerminalRenderer = {
   focusTextInput(): void;
   clearSelection(): void;
   scrollToBottom(): void;
+  /** Renders at least this PTY size even when the container is smaller. */
+  setMinimumSize(cols: number, rows: number): void;
   setScrollSensitivity(value: number): void;
   dispose(): void;
 };
@@ -177,6 +179,8 @@ export class GhosttyRenderer implements TerminalRenderer {
   #mobileTouchSelectionEndpointTimeoutMs: MobileTouchSelectionEndpointTimeoutMs =
     DEFAULT_MOBILE_TOUCH_SELECTION_ENDPOINT_TIMEOUT_MS;
   #textInputTapGraceUntil = 0;
+  #minCols = 0;
+  #minRows = 0;
   #fontSizePx: number;
   #cursorBlink: boolean;
   #eventDrivenRendering: boolean;
@@ -280,6 +284,20 @@ export class GhosttyRenderer implements TerminalRenderer {
     this.#terminal?.scrollToBottom();
   }
 
+  setMinimumSize(cols: number, rows: number) {
+    this.#minCols = Math.max(1, Math.floor(cols));
+    this.#minRows = Math.max(1, Math.floor(rows));
+  }
+
+  #applyMinimumSize(terminal: Terminal) {
+    if (terminal.cols < this.#minCols || terminal.rows < this.#minRows) {
+      terminal.resize(
+        Math.max(terminal.cols, this.#minCols),
+        Math.max(terminal.rows, this.#minRows),
+      );
+    }
+  }
+
   onScroll(callback: (lines: number) => void) {
     this.#scrollCallback = callback;
     return () => {
@@ -310,6 +328,7 @@ export class GhosttyRenderer implements TerminalRenderer {
   fit() {
     const terminal = this.#requireTerminal();
     this.#fitAddon?.fit();
+    this.#applyMinimumSize(terminal);
     this.#accessibleScreenPublisher?.request();
     return {
       cols: terminal.cols,

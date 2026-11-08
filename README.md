@@ -422,9 +422,11 @@ Herdr core currently allows only one terminal attach owner per terminal. The bri
 that by opening one Herdr terminal attach per `terminal_id` and broadcasting output to all browser
 clients viewing that terminal.
 
-Input, scroll, and resize from any browser are forwarded through the shared attach. Sizing is
-currently last resize wins. The header's refit button forces the current browser to send a fresh
-fit/resize frame.
+Input, scroll, and resize from any browser are forwarded through the shared attach. Browser resize
+requests are clamped to the pane size Herdr already has when the bridge attaches, so a narrow phone
+cannot shrink the server's terminal or other clients. The browser renders at that size and scrolls
+horizontally when its viewport is narrower. The header's refit button forces the current browser to
+send a fresh fit/resize frame.
 
 API and WebSocket requests must use an allowed bridge `Host` header. Browser-originated requests
 must also be same-origin with the bridge, an explicitly allowed origin such as Android's

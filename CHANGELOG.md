@@ -35,6 +35,9 @@
 
 ### Fixed
 
+- Clamp browser terminal resizes to the pane size Herdr already uses, so connecting from a narrow
+  phone no longer shrinks the server's terminal or other clients. Browsers render at the PTY size
+  and scroll horizontally when the viewport is smaller.
 - Report the bridge error body with snapshot failures so the mobile status bar can distinguish a
   missing Herdr daemon from an unreachable bridge.
 - Stop the mobile key board from swallowing the next click after a cancelled touch press.

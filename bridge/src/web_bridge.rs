@@ -670,6 +670,12 @@ struct SharedTerminalSession {
     output_tx: tokio::sync::broadcast::Sender<TerminalOutput>,
     client_count: Arc<AtomicUsize>,
     connection_closed: Arc<ConnectionClosed>,
+    /// Size Herdr already had when the session attached. Browser resizes are
+    /// clamped to at least this size so a phone cannot shrink the server's
+    /// terminal (or every other client) to its own viewport.
+    size_floor: (u16, u16),
+    /// Size last requested for the daemon PTY, reported to new browsers.
+    size: (u16, u16),
 }
 
 /// Sender for daemon-bound terminal messages that bounds how many input
@@ -3763,6 +3769,21 @@ async fn handle_terminal_socket(socket: WebSocket, state: BridgeState, query: Te
     };
 
     let write_tx = session.write_tx.clone();
+    let size_message = format!(
+        r#"{{"type":"terminal_size","cols":{},"rows":{}}}"#,
+        session.size.0, session.size.1
+    );
+    if send_websocket_message(
+        &mut ws_sender,
+        Message::Text(size_message.into()),
+        "terminal",
+    )
+    .await
+    .is_err()
+    {
+        release_terminal_session(&state.terminal_sessions, &terminal_id, &session);
+        return;
+    }
     let mut terminal_rx = session.output_tx.subscribe();
     if output_encoding == TerminalOutputWireEncoding::Gzip {
         let ack = Message::Text(TERMINAL_OUTPUT_GZIP_ACKNOWLEDGEMENT.into());
@@ -3813,7 +3834,7 @@ async fn handle_terminal_socket(socket: WebSocket, state: BridgeState, query: Te
                 }
                 Some(message) = ws_receiver.next() => {
                     record_websocket_peer_activity(&mut heartbeat, &message);
-                    if !handle_terminal_client_message(&write_tx, message) {
+                    if !handle_terminal_client_message(&write_tx, message, session.size_floor) {
                         break;
                     }
                 }
@@ -3864,7 +3885,7 @@ async fn handle_terminal_socket(socket: WebSocket, state: BridgeState, query: Te
                 }
                 Some(message) = ws_receiver.next() => {
                     record_websocket_peer_activity(&mut heartbeat, &message);
-                    if !handle_terminal_client_message(&write_tx, message) {
+                    if !handle_terminal_client_message(&write_tx, message, session.size_floor) {
                         break;
                     }
                 }
@@ -3962,9 +3983,12 @@ async fn handle_terminal_output_message(
 fn handle_terminal_client_message(
     write_tx: &TerminalWriter,
     message: Result<Message, axum::Error>,
+    size_floor: (u16, u16),
 ) -> bool {
     match message {
-        Ok(Message::Text(text)) => handle_terminal_text_frame(write_tx, text.as_str()).is_ok(),
+        Ok(Message::Text(text)) => {
+            handle_terminal_text_frame(write_tx, text.as_str(), size_floor).is_ok()
+        }
         Ok(Message::Binary(bytes)) => send_terminal_input_chunks(write_tx, &bytes).is_ok(),
         Ok(Message::Close(_)) => false,
         Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => true,
@@ -4078,11 +4102,16 @@ async fn acquire_terminal_session(
             let handshake = || -> Result<SharedTerminalSession, BridgeError> {
                 let protocol_version = terminal_attach_protocol(&state.api)?;
                 let (output_tx, _) = tokio::sync::broadcast::channel(256);
+                // Herdr resizes the pane PTY on attach, so a small browser
+                // would otherwise shrink the server's terminal. Use Herdr's
+                // current pane size as a floor and never go below it.
+                let size_floor = current_terminal_size(&state.api, &terminal_id).unwrap_or((0, 0));
+                let size = effective_terminal_size((cols, rows), size_floor);
                 let attach = open_terminal_attach(
                     state.client_socket_path.clone(),
                     terminal_id.clone(),
-                    cols,
-                    rows,
+                    size.0,
+                    size.1,
                     takeover,
                     protocol_version,
                     output_tx.clone(),
@@ -4092,6 +4121,8 @@ async fn acquire_terminal_session(
                     output_tx,
                     client_count: Arc::new(AtomicUsize::new(0)),
                     connection_closed: attach.connection_closed,
+                    size_floor,
+                    size,
                 })
             };
             let session = match handshake() {
@@ -4694,7 +4725,11 @@ fn send_terminal_input_chunks(
     Ok(stats)
 }
 
-fn handle_terminal_text_frame(write_tx: &TerminalWriter, text: &str) -> Result<(), String> {
+fn handle_terminal_text_frame(
+    write_tx: &TerminalWriter,
+    text: &str,
+    size_floor: (u16, u16),
+) -> Result<(), String> {
     let frame = parse_terminal_client_frame(text)?;
     match frame {
         TerminalClientFrame::Input { data } => {
@@ -4706,16 +4741,19 @@ fn handle_terminal_text_frame(write_tx: &TerminalWriter, text: &str) -> Result<(
             rows,
             cell_width_px,
             cell_height_px,
-        } => write_tx
-            .send(ClientMessage::Resize {
-                cols,
-                rows,
-                cell_width_px,
-                cell_height_px,
-                pixel_mouse: false,
-            })
-            .map(|_| ())
-            .map_err(|_| "terminal writer closed".to_string()),
+        } => {
+            let (cols, rows) = effective_terminal_size((cols, rows), size_floor);
+            write_tx
+                .send(ClientMessage::Resize {
+                    cols,
+                    rows,
+                    cell_width_px,
+                    cell_height_px,
+                    pixel_mouse: false,
+                })
+                .map(|_| ())
+                .map_err(|_| "terminal writer closed".to_string())
+        }
         TerminalClientFrame::Scroll { direction, lines } => write_tx
             .send(ClientMessage::AttachScroll {
                 source: AttachScrollSource::Wheel,
@@ -4902,6 +4940,45 @@ fn shutdown_terminal_attach_stream(stream: &herdr_compat::ipc::LocalStream) {
     }
     #[cfg(not(unix))]
     let _ = stream; // Named pipes tear down once both processes drop handles.
+}
+
+/// Browser resizes never fall below Herdr's existing pane size. A phone in
+/// portrait is narrower than a desktop pane, and resizing the shared PTY down
+/// to it would shrink the server's terminal and every other client.
+fn effective_terminal_size(request: (u16, u16), floor: (u16, u16)) -> (u16, u16) {
+    (request.0.max(floor.0).max(1), request.1.max(floor.1).max(1))
+}
+
+/// Finds the pane viewport Herdr currently uses for a terminal id.
+fn terminal_size_from_layouts(
+    panes: &[PaneInfo],
+    layouts: &[PaneLayoutSnapshot],
+    terminal_id: &str,
+) -> Option<(u16, u16)> {
+    let pane = panes.iter().find(|pane| pane.terminal_id == terminal_id)?;
+    layouts.iter().find_map(|layout| {
+        layout
+            .panes
+            .iter()
+            .find(|entry| entry.pane_id == pane.pane_id)
+            .filter(|entry| entry.rect.width > 0 && entry.rect.height > 0)
+            .map(|entry| (entry.rect.width, entry.rect.height))
+    })
+}
+
+fn current_terminal_size(api: &ApiClient, terminal_id: &str) -> Option<(u16, u16)> {
+    let response = api_request(
+        api,
+        "herdr-web:terminal-size",
+        Method::SessionSnapshot(EmptyParams::default()),
+    )
+    .ok()?;
+    match response {
+        ResponseResult::SessionSnapshot { snapshot } => {
+            terminal_size_from_layouts(&snapshot.panes, &snapshot.layouts, terminal_id)
+        }
+        _ => None,
+    }
 }
 
 fn terminal_attach_protocol(api: &ApiClient) -> Result<u32, BridgeError> {
@@ -5559,6 +5636,8 @@ mod tests {
                 output_tx,
                 client_count: Arc::new(AtomicUsize::new(1)),
                 connection_closed: Arc::new(ConnectionClosed::default()),
+                size_floor: (0, 0),
+                size: (80, 24),
             },
             rx,
         )
@@ -5970,6 +6049,38 @@ mod tests {
         ));
         assert!(if_none_match_matches("*", &etag));
         assert!(!if_none_match_matches("W/\"other\"", &etag));
+    }
+
+    #[test]
+    fn effective_terminal_size_never_shrinks_below_the_daemon_floor() {
+        assert_eq!(effective_terminal_size((40, 20), (120, 40)), (120, 40));
+        assert_eq!(effective_terminal_size((200, 60), (120, 40)), (200, 60));
+        assert_eq!(effective_terminal_size((0, 0), (0, 0)), (1, 1));
+        assert_eq!(effective_terminal_size((80, 24), (0, 0)), (80, 24));
+    }
+
+    #[test]
+    fn terminal_size_from_layouts_uses_the_pane_viewport() {
+        let pane = test_pane("p1");
+        let layout: PaneLayoutSnapshot = serde_json::from_value(serde_json::json!({
+            "workspace_id": "workspace-1",
+            "tab_id": "tab-1",
+            "zoomed": false,
+            "area": {"x": 0, "y": 0, "width": 120, "height": 40},
+            "focused_pane_id": "p1",
+            "panes": [{
+                "pane_id": "p1",
+                "focused": true,
+                "rect": {"x": 0, "y": 0, "width": 88, "height": 24}
+            }],
+            "splits": []
+        }))
+        .unwrap();
+        assert_eq!(
+            terminal_size_from_layouts(&[pane.clone()], &[layout], &pane.terminal_id),
+            Some((88, 24))
+        );
+        assert_eq!(terminal_size_from_layouts(&[pane], &[], "missing"), None);
     }
 
     #[test]

@@ -3901,3 +3901,15 @@ button {
   margin-left: auto;
   padding: 0 10px;
 }
+
+/* A PTY wider than the phone renders at the PTY size; scroll instead of
+   shrinking the shared terminal. */
+.terminal-host {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.terminal-host::-webkit-scrollbar {
+  display: none;
+}
