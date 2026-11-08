@@ -1,0 +1,34 @@
+schema: spec-driven
+
+context: |
+  Language: zh-CN
+  All artifacts must be written in zh-CN.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+  herdr-web（仓库 herdr-wpa）是 Herdr 的浏览器前端与 Capacitor Android 壳。
+  前端在 web/src（React 19 + Vite + TypeScript），桥在 bridge/src（Rust + axum），
+  兼容层在 vendor/herdr-compat，运行时要求 Herdr v0.9.0+ 与终端协议 22。
+  浏览器只能用桥的白名单命令；终端按键与文本一律经 /ws/terminal 发送字节序列，
+  不存在独立的 send_keys / key API，也不要假设新增桥命令。
+  bridge 默认无用户认证，手机通常经 LAN 或反向代理访问；不要把凭据放进前端。
+  移动端目标：Android Chrome/Capacitor 与 iOS Safari/PWA，单手可操作，弱网可恢复。
+  现有移动端实现集中在 web/src/TerminalView.tsx、mobileTerminalControls.ts、
+  MobileTerminalKeyButton.tsx、mobileTerminalPrefs.ts 与 styles.css 的 data-touch 规则。
+  UI 参考实现（同机 collie 项目，只作为交互参考，不复制其代码或协议）：
+  web/src/lib/key-board.ts、key-board-store.ts、components/key-board-editor.tsx、
+  components/composer.tsx 的 Keys tray、hooks/use-keyboard.ts、use-connection-lost.ts。
+
+rules:
+  proposal:
+    - 明确区分已验证的现有能力与本次提案，不把未实现的行为写成现状。
+    - 明确非目标与兼容边界，尤其是桥命令白名单、协议 22、无认证 LAN 假设。
+  specs:
+    - 描述可观察行为，并包含可测试的失败、弱网、无障碍与误触场景。
+    - 不假设 Herdr 存在未验证的键盘或命令 API；按键一律描述为终端输入字节。
+    - 声明移动端的最小可用尺寸与单手可达区域。
+  design:
+    - 优先复用现有 MobileTerminalControls、mobileTerminalPrefs、CSS 变量与设置结构。
+    - 说明软键盘、safe-area、visualViewport、Capacitor 与 iOS Safari 的差异处理。
+    - 新增持久化状态必须版本化、可校验、损坏时回退默认值而不抛异常。
+  tasks:
+    - 规划阶段保持复选框未勾选；勾选表示实现与验证都已完成。
+    - 每项任务给出具体验证方式，并在实现时同步补测试与文档。

@@ -22,7 +22,9 @@
     "build": "npm run build:web && npm run bridge:build",
     "test": "npm run test:dev && npm run test:release && npm run test:web && npm run bridge:test",
     "lint": "npm run lint:web && npm run bridge:fmt",
-    "check": "npm run vendor:check && npm run lint && npm run test && npm run build"
+    "check": "npm run vendor:check && npm run lint && npm run test && npm run build",
+    "spec:list": "npx -y @fission-ai/openspec@latest list",
+    "spec:validate": "npx -y @fission-ai/openspec@latest validate --changes --strict"
   },
   "devDependencies": {
     "@capacitor/android": "^8.4.0",

@@ -15,6 +15,24 @@ This is a lightweight internal onboarding note for agents working in this repo.
 - Do not recreate a full `vendor/herdr/` upstream snapshot; use a separate Herdr checkout for
   refreshes and audits.
 
+## OpenSpec Planning
+
+- Planning artifacts live under `openspec/`; configuration and conventions are in
+  `openspec/config.yaml`. Artifacts are written in zh-CN while structural headings and
+  `SHALL` / `MUST` stay in English.
+- Active change: `mobile-terminal-experience`. Read it in order:
+  `proposal.md` → `specs/*/spec.md` → `design.md` → `tasks.md`.
+- Unchecked tasks mean "not implemented"; do not describe planned behavior as shipped.
+- Use the CLI through npm scripts (no global install required):
+
+  ```bash
+  npm run spec:list
+  npm run spec:validate
+  ```
+
+- Implementation still requires the normal `npm run check`, changelog entry, and release flow.
+  Plans do not authorize bridge command changes, protocol changes, or security-model changes.
+
 ## Conventions
 
 - Keep product changes scoped to the web app, bridge executable, and minimal compatibility crate
