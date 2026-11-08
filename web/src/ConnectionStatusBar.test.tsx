@@ -12,9 +12,21 @@ import type { ConnectionPhase } from "./connectionPhase";
 let root: Root;
 let container: HTMLDivElement;
 
-function render(phase: ConnectionPhase, retrying = false, onRetry = vi.fn()) {
+function render(
+  phase: ConnectionPhase,
+  retrying = false,
+  onRetry = vi.fn(),
+  hasSnapshot?: boolean,
+) {
   act(() => {
-    root.render(<ConnectionStatusBar phase={phase} retrying={retrying} onRetry={onRetry} />);
+    root.render(
+      <ConnectionStatusBar
+        phase={phase}
+        retrying={retrying}
+        hasSnapshot={hasSnapshot}
+        onRetry={onRetry}
+      />,
+    );
   });
   return onRetry;
 }
@@ -63,6 +75,12 @@ describe("ConnectionStatusBar", () => {
     render("daemon-unavailable");
     expect(container.textContent).toContain("Herdr not available");
     expect(container.textContent).toContain("Herdr");
+  });
+
+  it("says Connecting before the first snapshot", () => {
+    render("reconnecting", false, vi.fn(), false);
+    expect(container.textContent).toContain("Connecting");
+    expect(container.querySelector("button")).toBeNull();
   });
 
   it("exposes a live status role", () => {

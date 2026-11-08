@@ -157,6 +157,7 @@ import { usePwaUpdate } from "./usePwaUpdate";
 import { connectionPhase, isDaemonUnavailableError, type TerminalConnectionState } from "./connectionPhase";
 import { useKeyboardInset } from "./useKeyboardInset";
 import { useOnlineStatus } from "./useOnlineStatus";
+import { useWakeLock } from "./useWakeLock";
 import { useMobileGestures, useMobileGesturesEnabled } from "./mobileGestures";
 import { TerminalView } from "./TerminalView";
 import {
@@ -1186,10 +1187,12 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
   useKeyboardInset();
   const pwaUpdate = usePwaUpdate();
   const online = useOnlineStatus();
+  const [mobileNotice, setMobileNotice] = useState<string | null>(null);
   const [terminalConnectionState, setTerminalConnectionState] =
     useState<TerminalConnectionState>("idle");
   const isCompactLayout = useIsCompactLayout();
   const isTouchInput = useIsTouchInput();
+  useWakeLock(isTouchInput);
   const showMobileKeyboardHideRefit = isNativeAndroid();
   const connectionRefs = useRef<Record<string, BridgeConnectionRef>>({});
   const isCompactLayoutRef = useRef(isCompactLayout);
@@ -3315,6 +3318,53 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
     onRefresh: () => refreshNow(),
   });
 
+  const selectedPaneIdRef = useRef<string | null>(selectedPane?.pane_id ?? null);
+  selectedPaneIdRef.current = selectedPane?.pane_id ?? null;
+  const handleAgentAttention = useCallback(
+    (info: {
+      paneId: string;
+      status: "done" | "blocked";
+      agent: string | null;
+      title: string | null;
+    }) => {
+      if (selectedPaneIdRef.current === info.paneId) {
+        return;
+      }
+      const label = info.agent ?? info.title ?? info.paneId;
+      setMobileNotice(
+        info.status === "blocked" ? `${label} needs attention` : `${label} finished`,
+      );
+      if (typeof navigator.vibrate === "function") {
+        navigator.vibrate(info.status === "blocked" ? [20, 60, 20, 60, 20] : [20, 40, 20]);
+      }
+      if (isCompactLayout) {
+        document.title = "● herdr-web";
+      }
+    },
+    [isCompactLayout],
+  );
+
+  useEffect(() => {
+    if (!mobileNotice) {
+      return;
+    }
+    const timer = window.setTimeout(() => setMobileNotice(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [mobileNotice]);
+
+  useEffect(() => {
+    if (!isCompactLayout) {
+      return;
+    }
+    const clear = () => {
+      if (document.visibilityState === "visible") {
+        document.title = "herdr-web";
+      }
+    };
+    document.addEventListener("visibilitychange", clear);
+    return () => document.removeEventListener("visibilitychange", clear);
+  }, [isCompactLayout]);
+
   async function refreshBridgeSnapshot(runtime: BridgeRuntime, setLoading: boolean) {
     const ref = ensureBridgeConnectionRef(connectionRefs, runtime);
     const requestConnectionKey = runtime.connectionKey;
@@ -3919,6 +3969,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
           onAgentActivityChanged={refreshAgentActivityForBridge}
           onAgentPinsChanged={refreshAgentPinsForBridge}
           onNotesChanged={refreshNotesForBridge}
+          onAgentAttention={handleAgentAttention}
         />
       ))}
       <aside
@@ -4266,8 +4317,17 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
         <ConnectionStatusBar
           phase={connectionStatusPhase}
           retrying={loadState === "loading"}
+          hasSnapshot={snapshot !== null}
           onRetry={() => refreshNow()}
         />
+        {mobileNotice ? (
+          <div className="mobile-notice" role="status">
+            <span>{mobileNotice}</span>
+            <button type="button" className="term-key" onClick={() => setMobileNotice(null)}>
+              Dismiss
+            </button>
+          </div>
+        ) : null}
         <PwaUpdateBar
           visible={pwaUpdate.needRefresh}
           onApply={pwaUpdate.applyUpdate}
@@ -4311,6 +4371,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
             httpUrl={selectedHttpUrl}
             wsUrl={selectedWsUrl}
             onConnectionStateChange={setTerminalConnectionState}
+            onFontSizeChange={(px) => setTerminalFontSizePx(parseTerminalFontSizePx(px))}
           />
         ) : renderTerminal ? (
           <TerminalView
@@ -4667,6 +4728,7 @@ export function BridgeConnectionController({
   onAgentActivityChanged,
   onAgentPinsChanged,
   onNotesChanged,
+  onAgentAttention,
 }: {
   runtime: BridgeRuntime;
   followSharedSelection: boolean;
@@ -4676,12 +4738,19 @@ export function BridgeConnectionController({
   onAgentActivityChanged: (bridgeId: BridgeId) => void;
   onAgentPinsChanged: (bridgeId: BridgeId) => void;
   onNotesChanged: (bridgeId: BridgeId) => void;
+  onAgentAttention?: (info: {
+    paneId: string;
+    status: "done" | "blocked";
+    agent: string | null;
+    title: string | null;
+  }) => void;
 }) {
   const httpUrlRef = useRef(runtime.httpUrl);
   const wsUrlRef = useRef(runtime.wsUrl);
   const onAgentActivityChangedRef = useRef(onAgentActivityChanged);
   const onAgentPinsChangedRef = useRef(onAgentPinsChanged);
   const onNotesChangedRef = useRef(onNotesChanged);
+  const onAgentAttentionRef = useRef(onAgentAttention);
   const followSharedSelectionRef = useRef(followSharedSelection);
   const refreshOffsetRef = useRef(stableBridgeRefreshOffsetMs(runtime.id));
 
@@ -4695,6 +4764,7 @@ export function BridgeConnectionController({
     onAgentActivityChangedRef.current = onAgentActivityChanged;
     onAgentPinsChangedRef.current = onAgentPinsChanged;
     onNotesChangedRef.current = onNotesChanged;
+    onAgentAttentionRef.current = onAgentAttention;
   }, [
     followSharedSelection,
     onAgentActivityChanged,
@@ -4856,6 +4926,17 @@ export function BridgeConnectionController({
         }
         const result = applyActivityMessage(currentRef.snapshot, parsed.message);
         if (result.status === "applied") {
+          if (parsed.message.type === "pane.agent_status_changed") {
+            const status = parsed.message.agent_status;
+            if (status === "done" || status === "blocked") {
+              onAgentAttentionRef.current?.({
+                paneId: parsed.message.pane_id,
+                status,
+                agent: parsed.message.agent ?? null,
+                title: parsed.message.title ?? null,
+              });
+            }
+          }
           currentRef.activityGeneration += 1;
           currentRef.activityLog = [
             ...currentRef.activityLog,
@@ -6115,6 +6196,7 @@ function SplitGrid({
   httpUrl,
   wsUrl,
   onConnectionStateChange,
+  onFontSizeChange,
 }: {
   bridgeId: string;
   cells: { pane: PaneInfo; style: CSSProperties }[];
@@ -6145,6 +6227,7 @@ function SplitGrid({
   httpUrl: (path: string, query?: URLSearchParams) => string;
   wsUrl: (path: string, query?: URLSearchParams) => string;
   onConnectionStateChange?: (state: TerminalConnectionState) => void;
+  onFontSizeChange?: (fontSizePx: number) => void;
 }) {
   return (
     <div className="pane-grid" aria-label="Split panes">
@@ -6163,6 +6246,7 @@ function SplitGrid({
               bridgeId={bridgeId}
               pane={pane}
               onConnectionStateChange={selected ? onConnectionStateChange : undefined}
+              onFontSizeChange={onFontSizeChange}
               connectionKey={connectionKey}
               resumeToken={resumeToken}
               httpUrl={httpUrl}

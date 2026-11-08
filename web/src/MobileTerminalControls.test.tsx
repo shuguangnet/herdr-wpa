@@ -403,6 +403,7 @@ describe("TerminalCommandControls", () => {
       [...actions.querySelectorAll("button")].map((button) => button.getAttribute("aria-label")),
     ).toEqual([
       "Upload file",
+      "Paste from clipboard",
       "Stage command in terminal",
       "Show more keys",
       "Focus terminal keyboard",

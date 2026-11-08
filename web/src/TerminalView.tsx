@@ -1,6 +1,8 @@
 import { useTerminalFocusRequest } from "./useTerminalFocusRequest";
 import { useCommandDraft } from "./commandDrafts";
 import {
+  ArrowDown,
+  ClipboardPaste,
   Copy,
   ExternalLink,
   Keyboard,
@@ -135,6 +137,8 @@ type Props = {
   autoRenameUploadConflicts?: boolean;
   /** Reports socket state so the compact status bar can name the failing layer. */
   onConnectionStateChange?: (state: TerminalConnectionState) => void;
+  /** Adjusts the terminal font size from a two-finger pinch. */
+  onFontSizeChange?: (fontSizePx: number) => void;
   /** Pane-specific accessible name for the terminal and its screen mirror. */
   accessibilityLabel?: string;
   /** Whether this is the currently selected terminal in a split. */
@@ -207,6 +211,7 @@ function TerminalViewComponent({
   terminalScreenReaderText = false,
   autoRenameUploadConflicts = true,
   onConnectionStateChange,
+  onFontSizeChange,
   accessibilityLabel = "Terminal",
   selected = false,
   createTerminalRenderer = createGhosttyTerminalRenderer,
@@ -236,6 +241,7 @@ function TerminalViewComponent({
   const overlayTerminalIdRef = useRef(pane?.terminal_id ?? null);
   const delayConnectingOverlayRef = useRef(false);
   const [connectionState, setConnectionState] = useState<TerminalConnectionState>("idle");
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   useEffect(() => {
     onConnectionStateChange?.(connectionState);
   }, [connectionState, onConnectionStateChange]);
@@ -588,6 +594,9 @@ function TerminalViewComponent({
           sendTerminalInputData(data);
         });
         disposeScroll = renderer.onScroll((lines) => {
+          if (lines !== 0) {
+            setShowScrollToBottom(true);
+          }
           const socket = socketRef.current;
           if (socket?.readyState !== WebSocket.OPEN || lines === 0) {
             return;
@@ -1426,6 +1435,41 @@ function TerminalViewComponent({
     return true;
   };
 
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || !onFontSizeChange) {
+      return;
+    }
+    let startDistance = 0;
+    let startFontSize = terminalFontSizePxRef.current;
+    const distance = (touches: TouchList) =>
+      Math.hypot(
+        touches[0].clientX - touches[1].clientX,
+        touches[0].clientY - touches[1].clientY,
+      );
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2) {
+        return;
+      }
+      startDistance = distance(event.touches);
+      startFontSize = terminalFontSizePxRef.current;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      if (event.touches.length !== 2 || startDistance === 0) {
+        return;
+      }
+      event.preventDefault();
+      const next = Math.round(startFontSize * (distance(event.touches) / startDistance));
+      onFontSizeChange(next);
+    };
+    stage.addEventListener("touchstart", onTouchStart, { passive: true });
+    stage.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => {
+      stage.removeEventListener("touchstart", onTouchStart);
+      stage.removeEventListener("touchmove", onTouchMove);
+    };
+  }, [onFontSizeChange]);
+
   const showCommandControls = mobileControls || desktopCommandComposer;
 
   return (
@@ -1443,6 +1487,20 @@ function TerminalViewComponent({
       onPasteCapture={handlePaste}
     >
       <div ref={hostRef} className="terminal-host" />
+      {showScrollToBottom && connectionState === "attached" ? (
+        <button
+          className="icon-btn terminal-scroll-bottom"
+          type="button"
+          aria-label="Scroll to bottom"
+          title="Scroll to bottom"
+          onClick={() => {
+            rendererRef.current?.scrollToBottom();
+            setShowScrollToBottom(false);
+          }}
+        >
+          <ArrowDown size={18} />
+        </button>
+      ) : null}
       {pane && terminalScreenReaderText ? (
         <div
           className="terminal-accessible-screen sr-only"
@@ -1653,6 +1711,29 @@ export function TerminalCommandControls({
     }
     acceptedValueRef.current = event.currentTarget.value;
     setValue(event.currentTarget.value);
+  };
+  const [pasteStatus, setPasteStatus] = useState<string | null>(null);
+  const pasteFromClipboard = async () => {
+    if (disabled) {
+      return;
+    }
+    try {
+      const text = await navigator.clipboard?.readText();
+      if (!text) {
+        setPasteStatus("Clipboard is empty");
+        return;
+      }
+      const next = `${acceptedValueRef.current}${text}`;
+      acceptedValueRef.current = next;
+      setValue(next);
+      const node = commandInputRef.current;
+      if (node) {
+        node.value = next;
+      }
+      setPasteStatus(null);
+    } catch {
+      setPasteStatus("Clipboard permission denied");
+    }
   };
   const [fieldKey, setFieldKey] = useState(0);
   const focusAfterSubmitRef = useRef(false);
@@ -1884,6 +1965,16 @@ export function TerminalCommandControls({
           >
             <Paperclip size={15} />
           </button>
+          <button
+            className="term-key term-key-icon"
+            type="button"
+            aria-label="Paste from clipboard"
+            title="Paste"
+            disabled={disabled}
+            onClick={() => void pasteFromClipboard()}
+          >
+            <ClipboardPaste size={15} />
+          </button>
           {stageCommandButton}
           <button
             className="term-key term-key-icon"
@@ -2073,6 +2164,12 @@ export function TerminalCommandControls({
           <Send size={16} />
         </button>
       </form>
+
+      {pasteStatus ? (
+        <p className="term-paste-status" role="status">
+          {pasteStatus}
+        </p>
+      ) : null}
 
       {mobileControls && keyPadEditorOpen ? (
         <MobileKeyPadEditor

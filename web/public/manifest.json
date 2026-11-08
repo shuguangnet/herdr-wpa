@@ -2,7 +2,7 @@
   "name": "herdr-web",
   "short_name": "herdr",
   "description": "Terminal multiplexer web interface",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#11111b",
@@ -38,5 +38,6 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "scope": "./"
 }

@@ -3,6 +3,7 @@ import { connectionPhaseCopy, type ConnectionPhase } from "./connectionPhase";
 type Props = {
   phase: ConnectionPhase;
   retrying: boolean;
+  hasSnapshot?: boolean;
   onRetry: () => void;
 };
 
@@ -11,11 +12,11 @@ type Props = {
  * names the failing layer (phone, bridge or Herdr) instead of a generic
  * "disconnected".
  */
-export function ConnectionStatusBar({ phase, retrying, onRetry }: Props) {
+export function ConnectionStatusBar({ phase, retrying, hasSnapshot, onRetry }: Props) {
   if (phase === "terminal-attached") {
     return null;
   }
-  const copy = connectionPhaseCopy(phase);
+  const copy = connectionPhaseCopy(phase, { hasSnapshot });
   return (
     <div
       className="connection-status-bar"

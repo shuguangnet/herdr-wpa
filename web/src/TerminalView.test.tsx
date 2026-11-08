@@ -67,6 +67,8 @@ class FakeTerminalRenderer implements TerminalRenderer {
 
   clearSelection() {}
 
+  scrollToBottom() {}
+
   setScrollSensitivity() {}
 
   dispose() {}

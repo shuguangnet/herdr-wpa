@@ -83,7 +83,15 @@ export type ConnectionPhaseCopy = {
   canRetry: boolean;
 };
 
-export function connectionPhaseCopy(phase: ConnectionPhase): ConnectionPhaseCopy {
+export type ConnectionPhaseCopyOptions = {
+  /** False before the first snapshot has loaded, so the copy can say Connecting. */
+  hasSnapshot?: boolean;
+};
+
+export function connectionPhaseCopy(
+  phase: ConnectionPhase,
+  options: ConnectionPhaseCopyOptions = {},
+): ConnectionPhaseCopy {
   switch (phase) {
     case "offline":
       return {
@@ -110,11 +118,17 @@ export function connectionPhaseCopy(phase: ConnectionPhase): ConnectionPhaseCopy
         canRetry: false,
       };
     case "reconnecting":
-      return {
-        title: "Reconnecting",
-        hint: "Waiting for the terminal and event streams.",
-        canRetry: true,
-      };
+      return options.hasSnapshot === false
+        ? {
+            title: "Connecting",
+            hint: "Loading the workspace snapshot.",
+            canRetry: false,
+          }
+        : {
+            title: "Reconnecting",
+            hint: "Waiting for the terminal and event streams.",
+            canRetry: true,
+          };
   }
 }
 

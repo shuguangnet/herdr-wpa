@@ -72,6 +72,11 @@ describe("copy", () => {
     expect(connectionPhaseCopy("terminal-attached").canRetry).toBe(false);
   });
 
+  it("says Connecting before the first snapshot", () => {
+    expect(connectionPhaseCopy("reconnecting", { hasSnapshot: false }).title).toBe("Connecting");
+    expect(connectionPhaseCopy("reconnecting", { hasSnapshot: true }).title).toBe("Reconnecting");
+  });
+
   it("marks blocking phases as offline-like", () => {
     expect(isOfflinePhase("offline")).toBe(true);
     expect(isOfflinePhase("bridge-unreachable")).toBe(true);
