@@ -1,10 +1,6 @@
 # Changelog
 
-## [Unreleased]
-
-### Breaking Changes
-
-### Added
+## [0.6.3] - 2026-11-08
 
 ### Changed
 
@@ -19,8 +15,6 @@
   closes a subscription socket right after acknowledging it.
 - Return sockets accepted from non-blocking test listeners to blocking mode so the bridge test suite
   passes on macOS.
-
-### Removed
 
 ## [0.6.2] - 2026-10-07
 
