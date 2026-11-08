@@ -131,6 +131,8 @@ type Props = {
   terminalScreenReaderText?: boolean;
   /** Whether upload filename conflicts are resolved with a numeric suffix. */
   autoRenameUploadConflicts?: boolean;
+  /** Reports socket state so the compact status bar can name the failing layer. */
+  onConnectionStateChange?: (state: TerminalConnectionState) => void;
   /** Pane-specific accessible name for the terminal and its screen mirror. */
   accessibilityLabel?: string;
   /** Whether this is the currently selected terminal in a split. */
@@ -201,6 +203,7 @@ function TerminalViewComponent({
   focusToken = 0,
   terminalScreenReaderText = false,
   autoRenameUploadConflicts = true,
+  onConnectionStateChange,
   accessibilityLabel = "Terminal",
   selected = false,
   createTerminalRenderer = createGhosttyTerminalRenderer,
@@ -230,6 +233,9 @@ function TerminalViewComponent({
   const overlayTerminalIdRef = useRef(pane?.terminal_id ?? null);
   const delayConnectingOverlayRef = useRef(false);
   const [connectionState, setConnectionState] = useState<TerminalConnectionState>("idle");
+  useEffect(() => {
+    onConnectionStateChange?.(connectionState);
+  }, [connectionState, onConnectionStateChange]);
   const [closeReason, setCloseReason] = useState<string | null>(null);
   const [rendererReady, setRendererReady] = useState<TerminalRendererReady | null>(null);
   const [accessibleScreen, setAccessibleScreen] = useState("");

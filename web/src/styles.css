@@ -3746,3 +3746,35 @@ button {
     12px + env(safe-area-inset-bottom) + var(--keyboard-inset, 0px)
   );
 }
+
+/* Compact connection status: names the failing layer instead of "disconnected". */
+.connection-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--peach) 16%, var(--mantle));
+  color: var(--text);
+  font-size: 12px;
+}
+
+.connection-status-bar[data-phase="offline"],
+.connection-status-bar[data-phase="daemon-unavailable"] {
+  background: color-mix(in srgb, var(--red) 16%, var(--mantle));
+}
+
+.connection-status-title {
+  font-weight: 600;
+}
+
+.connection-status-hint {
+  color: var(--subtext0);
+}
+
+.connection-status-retry {
+  height: 32px;
+  margin-left: auto;
+  padding: 0 12px;
+}

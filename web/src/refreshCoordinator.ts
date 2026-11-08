@@ -1,7 +1,7 @@
 export type SnapshotRefreshControllerOptions<TSnapshot> = {
   fetchSnapshot: () => Promise<TSnapshot>;
   applySnapshot: (snapshot: TSnapshot, refreshGeneration: number) => void;
-  onError: () => void;
+  onError: (error: unknown) => void;
   isCurrent: () => boolean;
   getGeneration: () => number;
   getBarrierGeneration: () => number;
@@ -76,9 +76,9 @@ export function createSnapshotRefreshController<TSnapshot>({
         }
         applySnapshot(next, refreshGeneration);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (isCurrent()) {
-          onError();
+          onError(error);
         }
       })
       .finally(() => {

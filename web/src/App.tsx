@@ -149,7 +149,10 @@ import {
   createSnapshotRefreshScheduler,
 } from "./refreshCoordinator";
 import { commitSnapshotState, snapshotFingerprint } from "./snapshotState";
+import { ConnectionStatusBar } from "./ConnectionStatusBar";
+import { connectionPhase, isDaemonUnavailableError, type TerminalConnectionState } from "./connectionPhase";
 import { useKeyboardInset } from "./useKeyboardInset";
+import { useOnlineStatus } from "./useOnlineStatus";
 import { useMobileGestures, useMobileGesturesEnabled } from "./mobileGestures";
 import { TerminalView } from "./TerminalView";
 import {
@@ -264,6 +267,8 @@ export type BridgeConnectionState = {
   snapshot: Snapshot | null;
   loadState: LoadState;
   fingerprint?: string | null;
+  /** Last snapshot failure, used to tell a bridge outage from a Herdr outage. */
+  error?: string | null;
 };
 type BridgeResourceState<Response> = {
   connectionKey: string;
@@ -1171,6 +1176,9 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
   const [refitToken, setRefitToken] = useState(0);
   const [terminalFocusToken, setTerminalFocusToken] = useState(0);
   useKeyboardInset();
+  const online = useOnlineStatus();
+  const [terminalConnectionState, setTerminalConnectionState] =
+    useState<TerminalConnectionState>("idle");
   const isCompactLayout = useIsCompactLayout();
   const isTouchInput = useIsTouchInput();
   const showMobileKeyboardHideRefit = isNativeAndroid();
@@ -1399,6 +1407,14 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
       : null;
   const snapshot = selectedConnectionState?.snapshot ?? null;
   const loadState: LoadState = selectedConnectionState?.loadState ?? (selectedRuntime ? "loading" : "ready");
+  const connectionError = selectedConnectionState?.error ?? null;
+  const connectionStatusPhase = connectionPhase({
+    online,
+    bridgeLoadState: loadState,
+    daemonUnavailable: isDaemonUnavailableError(connectionError),
+    terminalState: terminalConnectionState,
+    reconnecting: loadState === "loading",
+  });
   const selectedRawPaneId =
     selectedRuntime && selectedPaneRefState?.bridgeId === selectedRuntime.id
       ? selectedPaneRefState.paneId
@@ -3343,7 +3359,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
         ),
       );
       return patched;
-    } catch {
+    } catch (error) {
       const currentRef = connectionRefs.current[runtime.id];
       if (currentRef?.connectionKey === requestConnectionKey) {
         setConnectionStates((current) => ({
@@ -3352,6 +3368,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
             connectionKey: requestConnectionKey,
             snapshot: current[runtime.id]?.snapshot ?? null,
             loadState: "error",
+            error: error instanceof Error ? error.message : String(error),
           },
         }));
       }
@@ -4212,6 +4229,11 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
           ) : null}
           {selectedPane ? <StatusBadge status={selectedPane.agent_status} /> : null}
         </header>
+        <ConnectionStatusBar
+          phase={connectionStatusPhase}
+          retrying={loadState === "loading"}
+          onRetry={() => refreshNow()}
+        />
         {showSplit && splitCells ? (
           <SplitGrid
             bridgeId={selectedRuntime?.id ?? ""}
@@ -4248,6 +4270,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
             resumeToken={selectedRuntime?.resumeToken ?? 0}
             httpUrl={selectedHttpUrl}
             wsUrl={selectedWsUrl}
+            onConnectionStateChange={setTerminalConnectionState}
           />
         ) : renderTerminal ? (
           <TerminalView
@@ -4260,6 +4283,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
             autoFocus={!isTouchInput}
             scrollSensitivity={isTouchInput ? 2 : 0.4}
             mobileControls={isTouchInput}
+            onConnectionStateChange={setTerminalConnectionState}
             desktopCommandComposer={desktopCommandComposer}
             desktopCommandEnterNewline={desktopCommandEnterNewline}
             cursorBlink={!isTouchInput && terminalCursorBlink}
@@ -4688,7 +4712,7 @@ export function BridgeConnectionController({
       getBarrierGeneration: () =>
         connectionRefs.current[runtime.id]?.resyncBarrierGeneration ?? 0,
       isCurrent: isCurrentConnection,
-      onError: () =>
+      onError: (error) =>
         setConnectionStates((current) => ({
           ...current,
           [runtime.id]: {
@@ -4698,6 +4722,7 @@ export function BridgeConnectionController({
                 ? current[runtime.id]?.snapshot ?? null
                 : null,
             loadState: "error",
+            error: error instanceof Error ? error.message : String(error),
           },
         })),
       applySnapshot: (next, refreshGeneration) => {
@@ -4747,6 +4772,8 @@ export function BridgeConnectionController({
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    const handleOnline = () => refreshNow();
+    window.addEventListener("online", handleOnline);
     const requestActivityResync = () => {
       const currentRef = connectionRefs.current[runtime.id];
       if (!currentRef) {
@@ -4870,6 +4897,7 @@ export function BridgeConnectionController({
     return () => {
       disposed = true;
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("online", handleOnline);
       refreshScheduler.dispose();
       events?.close();
       activity?.close();
@@ -6042,6 +6070,7 @@ function SplitGrid({
   resumeToken,
   httpUrl,
   wsUrl,
+  onConnectionStateChange,
 }: {
   bridgeId: string;
   cells: { pane: PaneInfo; style: CSSProperties }[];
@@ -6070,6 +6099,7 @@ function SplitGrid({
   resumeToken: number;
   httpUrl: (path: string, query?: URLSearchParams) => string;
   wsUrl: (path: string, query?: URLSearchParams) => string;
+  onConnectionStateChange?: (state: TerminalConnectionState) => void;
 }) {
   return (
     <div className="pane-grid" aria-label="Split panes">
@@ -6087,6 +6117,7 @@ function SplitGrid({
             <TerminalView
               bridgeId={bridgeId}
               pane={pane}
+              onConnectionStateChange={selected ? onConnectionStateChange : undefined}
               connectionKey={connectionKey}
               resumeToken={resumeToken}
               httpUrl={httpUrl}
@@ -9889,7 +9920,8 @@ function openEventsSocket(
       if (closed || socket !== next || reconnectTimer !== null) {
         return;
       }
-      const delay = Math.min(500 * 2 ** attempts, 5000);
+      // Jitter keeps several tabs from reconnecting in lockstep.
+      const delay = Math.min(500 * 2 ** attempts, 5000) * (0.5 + Math.random() * 0.5);
       attempts += 1;
       reconnectTimer = window.setTimeout(() => {
         reconnectTimer = null;

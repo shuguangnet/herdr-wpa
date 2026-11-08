@@ -50,6 +50,7 @@ export function commitSnapshotState<T extends SnapshotConnectionState>(
       snapshot,
       loadState: "ready",
       fingerprint,
-    } as T,
+      error: null,
+    } as unknown as T,
   };
 }
