@@ -74,3 +74,16 @@ When there is no active space, Herdr chooses its default source.
 If another client closes the source space before creation, Herdr rejects the request;
 refresh/select an existing space and retry. The browser does not silently switch the
 launch directory by retrying without a source.
+
+## Mobile terminal
+
+- `mobileKeyBoard.ts` and `mobileKeyBoardStore.ts` own the 7-column key board, chord grammar,
+  presets, layout codes, and the versioned local copy.
+- `MobileKeyPad.tsx` renders the board and sticky modifiers; `MobileKeyPadEditor.tsx` edits it.
+- `mobileGestures.ts` resolves compact-layout swipes; `ConnectionStatusBar.tsx` plus
+  `connectionPhase.ts` explain the current connection layer.
+- `useKeyboardInset.ts` publishes `--keyboard-inset` from `visualViewport`; the dock reserves it.
+- `sw.ts` with `vite-plugin-pwa` precaches the app shell; `usePwaUpdate.ts` drives the update prompt.
+
+`npm run test` covers the pure modules and components. `npm run build` also emits `dist/sw.js` and
+the manifest-linked app shell.

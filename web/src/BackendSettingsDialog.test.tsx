@@ -5,6 +5,9 @@ import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BackendSettingsDialog } from "./BackendSettingsDialog";
+import { DEFAULT_BOARD, addRow, sameBoard } from "./mobileKeyBoard";
+import { KEY_BOARD_STORAGE_KEY, getKeyBoard, setKeyBoard } from "./mobileKeyBoardStore";
+import { HAPTICS_STORAGE_KEY, getHapticsEnabled } from "./useHaptics";
 
 const bridge = vi.hoisted(() => ({
   store: {
@@ -63,6 +66,39 @@ describe("BackendSettingsDialog terminal accessibility", () => {
     expect(off.getAttribute("aria-pressed")).toBe("true");
     await act(async () => on.click());
     expect(onFocusChange).toHaveBeenCalledWith(true);
+  });
+
+  it("persists key haptics and resets the key board from the Mobile area", async () => {
+    setKeyBoard(addRow(DEFAULT_BOARD));
+    expect(localStorage.getItem(KEY_BOARD_STORAGE_KEY)).not.toBeNull();
+
+    const { container } = await render(
+      <BackendSettingsDialog {...settingsProps()} showMobileTerminalSettings={true} />,
+    );
+    const tab = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find(
+      (button) => button.textContent?.includes("Mobile"),
+    );
+    expect(tab).toBeDefined();
+    await act(async () => tab!.click());
+
+    const haptics = requiredElement<HTMLElement>(
+      container,
+      '[role="group"][aria-label="Key haptics"]',
+    );
+    const [off, on] = Array.from(haptics.querySelectorAll<HTMLButtonElement>("button"));
+    await act(async () => off.click());
+    expect(getHapticsEnabled()).toBe(false);
+    expect(JSON.parse(localStorage.getItem(HAPTICS_STORAGE_KEY)!)).toBe(false);
+    await act(async () => on.click());
+    expect(getHapticsEnabled()).toBe(true);
+
+    const reset = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent === "Reset",
+    );
+    expect(reset).toBeDefined();
+    await act(async () => reset!.click());
+    expect(localStorage.getItem(KEY_BOARD_STORAGE_KEY)).toBeNull();
+    expect(sameBoard(getKeyBoard(), DEFAULT_BOARD)).toBe(true);
   });
 
   it("exposes a persisted-style opt-in control in the Terminal area", async () => {

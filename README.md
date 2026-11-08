@@ -21,8 +21,13 @@ navigation, multi-client viewing, mobile input controls, and synchronized pane s
 ## Highlights
 
 - Shared browser terminal viewing with synchronized pane selection across desktop and mobile.
-- Mobile-friendly text input with stage/send actions, configurable tap focus, and extended
-  terminal key controls.
+- Editable 7-column mobile key board with sticky modifiers, multi-step chords, presets, and layout
+  codes that move a layout between phones.
+- Mobile-friendly text input with stage/send actions, configurable tap focus, press repeat, and
+  optional key haptics.
+- Phone gestures for switching panes/tabs, plus a layered connection status that names the failing
+  layer (phone, bridge, or Herdr).
+- Installable PWA shell that opens offline, caches only app assets, and asks before updating.
 - Agent-focused sidebar with styled icons for detected Codex/OpenAI, Claude, Pi, Grok, and OpenCode panes.
 - Image and file uploads from the terminal toolbar, paste, or drag/drop, with uploaded paths inserted
   into the active terminal input.
@@ -188,7 +193,20 @@ Settings are grouped by area:
   selection, top/bottom app padding, and mobile terminal controls size.
 - Terminal: font size, optional screen-reader text, upload-conflict behavior, browser-to-bridge
   transport, and input/output batching delays.
-- Mobile: touch-specific terminal behavior when running on a coarse pointer device.
+- Mobile: key board layout reset, key haptics, swipe gestures, and touch-specific terminal behavior
+  when running on a coarse pointer device.
+
+The mobile dock uses an editable key board. Tap **Edit** on the board to add, resize, move, or
+delete keys, switch presets, and move the layout between phones with a layout code. Ctrl/Alt/Shift
+are sticky (one tap arms them for one key, a second tap locks them); keys marked dangerous require a
+second tap. Holding an arrow, Backspace, or Space repeats it. Swipe left/right to move between panes,
+or between tabs when the current tab has a single pane; pulling down from the top refreshes the
+snapshot. Key haptics and swipe gestures can be disabled under Settings → Mobile.
+
+The browser build ships a service worker that precaches the app shell, so an installed PWA opens
+offline and shows the connection status instead of a blank page. API and WebSocket traffic is never
+cached, and the update prompt waits for an explicit tap. The Android Capacitor shell does not depend
+on the service worker.
 
 When viewing all of multiple hosts, use the Spaces list `…` menu to group spaces by host or keep a
 flat list with host context in each row. The menu stays hidden in single-host scope.

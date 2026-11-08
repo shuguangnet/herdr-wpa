@@ -32,6 +32,10 @@ as `android/capacitor.settings.gradle` with machine-specific paths. After either
 
 ## Android Runtime Behavior
 
+The bundled app does not rely on the service worker. Android WebViews may not register it, and that
+is fine: the app shell is packaged inside the APK and the bridge connection works without a cache.
+Browser-hosted installs use the same app with the service worker enabled.
+
 The browser-served web app still defaults to the bridge that served the page. The bundled Android
 app has no serving bridge origin, so it starts disconnected until the user adds and activates a
 saved bridge in the Bridge area of Settings.

@@ -58,6 +58,10 @@ import { TERMINAL_INPUT_BATCH_DELAY_OPTIONS_MS } from "./terminalInputTransport"
 import type { TerminalInputTransport } from "./terminalInputTransport";
 import { TERMINAL_OUTPUT_COALESCE_OPTIONS_MS } from "./terminalOutputCoalescing";
 
+import { resetKeyBoard } from "./mobileKeyBoardStore";
+import { setHapticsEnabled, useHapticsEnabled } from "./useHaptics";
+import { setMobileGesturesEnabled, useMobileGesturesEnabled } from "./mobileGestures";
+
 type Props = {
   showMobileTerminalSettings: boolean;
   notesEnabled: boolean;
@@ -189,6 +193,8 @@ export function BackendSettingsDialog({
   const [message, setMessage] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<BridgeBackendProfile | null>(null);
   const [activeArea, setActiveArea] = useState<SettingsArea>("bridge");
+  const hapticsEnabled = useHapticsEnabled();
+  const gesturesEnabled = useMobileGesturesEnabled();
 
   const selectedBackend = useMemo(
     () => bridge.store.backends.find((backend) => backend.id === form.id) ?? null,
@@ -922,6 +928,62 @@ export function BackendSettingsDialog({
 
             {activeArea === "mobile" && showMobileTerminalSettings ? (
               <div className="settings-section settings-section-flat">
+                <div className="settings-label">Key board &amp; gestures</div>
+                <div className="settings-row">
+                  <span>Key haptics</span>
+                  <div className="segmented-control" role="group" aria-label="Key haptics">
+                    <button
+                      type="button"
+                      data-on={!hapticsEnabled}
+                      aria-pressed={!hapticsEnabled}
+                      onClick={() => setHapticsEnabled(false)}
+                    >
+                      Off
+                    </button>
+                    <button
+                      type="button"
+                      data-on={hapticsEnabled}
+                      aria-pressed={hapticsEnabled}
+                      onClick={() => setHapticsEnabled(true)}
+                    >
+                      On
+                    </button>
+                  </div>
+                </div>
+                <div className="settings-row">
+                  <span>Swipe gestures</span>
+                  <div className="segmented-control" role="group" aria-label="Swipe gestures">
+                    <button
+                      type="button"
+                      data-on={!gesturesEnabled}
+                      aria-pressed={!gesturesEnabled}
+                      onClick={() => setMobileGesturesEnabled(false)}
+                    >
+                      Off
+                    </button>
+                    <button
+                      type="button"
+                      data-on={gesturesEnabled}
+                      aria-pressed={gesturesEnabled}
+                      onClick={() => setMobileGesturesEnabled(true)}
+                    >
+                      On
+                    </button>
+                  </div>
+                </div>
+                <div className="settings-row">
+                  <span>Key board layout</span>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      resetKeyBoard();
+                      setMessage("Key board reset to the default layout.");
+                    }}
+                  >
+                    Reset
+                  </button>
+                </div>
                 <div className="settings-label">Mobile terminal</div>
                 <div className="settings-row">
                   <span>Terminal tap</span>

@@ -6,7 +6,22 @@
 
 ### Added
 
+- Replace the fixed mobile quick-key strip with an editable 7-column key board: sticky Ctrl/Alt/Shift
+  modifiers, multi-step chords, presets, layout codes, dangerous-key confirmation, hold-to-repeat,
+  and optional haptic feedback.
+- Add a key board editor for adding, resizing, moving, and deleting keys, switching presets, and
+  importing or exporting a layout between phones.
+- Add compact-layout swipe gestures for panes and tabs, pull to refresh, and a layered connection
+  status bar that distinguishes an offline phone, an unreachable bridge, and a missing Herdr daemon.
+- Ship a service worker that precaches the app shell for offline starts and prompts before applying
+  an update.
+
 ### Changed
+
+- Keep the mobile dock and key board editor above the soft keyboard with a `visualViewport` inset,
+  and raise primary touch targets to 40 CSS pixels.
+- Add reconnect jitter to browser event sockets so multiple tabs do not retry in lockstep.
+- Add Mobile settings for key haptics, swipe gestures, and resetting the key board layout.
 
 ### Fixed
 
