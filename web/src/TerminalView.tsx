@@ -24,8 +24,9 @@ import {
 } from "./mobileTerminalControls";
 import type { MobileTerminalChordKey } from "./mobileTerminalControls";
 import { MobileKeyPad } from "./MobileKeyPad";
+import { MobileKeyPadEditor } from "./MobileKeyPadEditor";
 import { MobileTerminalKeyButton } from "./MobileTerminalKeyButton";
-import { useKeyBoard } from "./mobileKeyBoardStore";
+import { setKeyBoard, useKeyBoard } from "./mobileKeyBoardStore";
 import { ConfirmDialog } from "./overlays";
 import { addNativeResumeHandler } from "./native";
 import { shellQuote } from "./shell";
@@ -1646,6 +1647,7 @@ export function TerminalCommandControls({
   const [moreKeysOpen, setMoreKeysOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const keyBoard = useKeyBoard();
+  const [keyPadEditorOpen, setKeyPadEditorOpen] = useState(false);
   const [composerModifiers, setComposerModifiers] = useState<MobileTerminalModifier[]>([]);
   const [composerKey, setComposerKey] = useState<MobileTerminalChordKey | null>(null);
   const [printableKey, setPrintableKey] = useState("");
@@ -1824,6 +1826,7 @@ export function TerminalCommandControls({
           <MobileKeyPad
             board={keyBoard}
             disabled={disabled}
+            onEdit={() => setKeyPadEditorOpen(true)}
             onSend={(chunks) => {
               for (const chunk of chunks) {
                 onInput(chunk);
@@ -2027,6 +2030,16 @@ export function TerminalCommandControls({
           <Send size={16} />
         </button>
       </form>
+
+      {mobileControls && keyPadEditorOpen ? (
+        <MobileKeyPadEditor
+          onClose={() => setKeyPadEditorOpen(false)}
+          onSave={(next) => {
+            setKeyBoard(next);
+            setKeyPadEditorOpen(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
