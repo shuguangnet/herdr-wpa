@@ -1977,14 +1977,14 @@ button {
 
 .terminal-command-controls {
   --mobile-control-gap: calc(5px * var(--mobile-controls-scale));
-  --mobile-key-height: calc(30px * var(--mobile-controls-scale));
-  --mobile-key-min-width: calc(34px * var(--mobile-controls-scale));
-  --mobile-key-icon-width: calc(34px * var(--mobile-controls-scale));
+  --mobile-key-height: calc(40px * var(--mobile-controls-scale));
+  --mobile-key-min-width: calc(40px * var(--mobile-controls-scale));
+  --mobile-key-icon-width: calc(40px * var(--mobile-controls-scale));
   --mobile-key-padding-x: calc(7px * var(--mobile-controls-scale));
   --mobile-key-panel-padding-x: calc(3px * var(--mobile-controls-scale));
-  --mobile-input-row-height: calc(34px * var(--mobile-controls-scale));
+  --mobile-input-row-height: calc(40px * var(--mobile-controls-scale));
   --mobile-input-padding-x: calc(10px * var(--mobile-controls-scale));
-  --mobile-send-width: calc(38px * var(--mobile-controls-scale));
+  --mobile-send-width: calc(40px * var(--mobile-controls-scale));
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
@@ -3729,4 +3729,20 @@ button {
 .mobile-key-editor .term-key[data-active="true"] {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 30%, var(--surface0));
+}
+
+/* Soft keyboard: keep the dock and the editor above the keyboard. Chrome with
+   interactive-widget=resizes-content reports 0; iOS Safari reports the gap. */
+.terminal-command-controls {
+  padding-bottom: calc(
+    7px * var(--mobile-controls-scale) + env(safe-area-inset-bottom) +
+      var(--keyboard-inset, 0px)
+  );
+}
+
+.mobile-key-editor {
+  max-height: calc(86vh - var(--keyboard-inset, 0px));
+  padding-bottom: calc(
+    12px + env(safe-area-inset-bottom) + var(--keyboard-inset, 0px)
+  );
 }

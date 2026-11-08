@@ -149,6 +149,7 @@ import {
   createSnapshotRefreshScheduler,
 } from "./refreshCoordinator";
 import { commitSnapshotState, snapshotFingerprint } from "./snapshotState";
+import { useKeyboardInset } from "./useKeyboardInset";
 import { TerminalView } from "./TerminalView";
 import {
   DEFAULT_TERMINAL_SCREEN_READER_TEXT,
@@ -1168,6 +1169,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
   const [error, setError] = useState<string | null>(null);
   const [refitToken, setRefitToken] = useState(0);
   const [terminalFocusToken, setTerminalFocusToken] = useState(0);
+  useKeyboardInset();
   const isCompactLayout = useIsCompactLayout();
   const isTouchInput = useIsTouchInput();
   const showMobileKeyboardHideRefit = isNativeAndroid();
