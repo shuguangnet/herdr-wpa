@@ -379,6 +379,19 @@ describe("TerminalCommandControls", () => {
     });
   }
 
+  it("compacts the key board while the command field has focus", async () => {
+    const { container } = await renderControls(false);
+    expect(container.querySelectorAll(".mobile-key-board .term-key")).toHaveLength(13);
+    const field = commandField(container);
+    await act(async () => field.focus());
+    expect(container.querySelectorAll(".mobile-key-board .term-key")).toHaveLength(7);
+    expect(
+      container.querySelector('.terminal-command-controls')?.getAttribute("data-input-focus"),
+    ).toBe("true");
+    await act(async () => field.blur());
+    expect(container.querySelectorAll(".mobile-key-board .term-key")).toHaveLength(13);
+  });
+
   it("keeps fixed icon actions above the command field and preserves quick keys", async () => {
     const { container, onInput, onUpload, onTerminalFocus, onStageCommand } =
       await renderControls(false);

@@ -1658,6 +1658,7 @@ export function TerminalCommandControls({
   const focusAfterSubmitRef = useRef(false);
   const [moreKeysOpen, setMoreKeysOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [commandInputFocused, setCommandInputFocused] = useState(false);
   const keyBoard = useKeyBoard();
   const [keyPadEditorOpen, setKeyPadEditorOpen] = useState(false);
   const [composerModifiers, setComposerModifiers] = useState<MobileTerminalModifier[]>([]);
@@ -1831,6 +1832,7 @@ export function TerminalCommandControls({
       className="terminal-command-controls"
       data-expanded={mobileControls && (composerOpen || moreKeysOpen) ? "true" : "false"}
       data-mobile-controls={mobileControls ? "true" : "false"}
+      data-input-focus={mobileControls && commandInputFocused ? "true" : "false"}
       data-composing={mobileControls && composerOpen ? "true" : "false"}
     >
       <div className="term-key-strip" aria-label="Common terminal keys" hidden={!mobileControls}>
@@ -1839,6 +1841,7 @@ export function TerminalCommandControls({
             <MobileKeyPad
               board={keyBoard}
               disabled={disabled}
+              compact={commandInputFocused}
               onEdit={() => setKeyPadEditorOpen(true)}
               onSend={(chunks) => {
                 for (const chunk of chunks) {
@@ -2036,6 +2039,8 @@ export function TerminalCommandControls({
             enterKeyHint={enterNewline ? "enter" : "send"}
             disabled={disabled}
             value={value}
+            onFocus={() => setCommandInputFocused(true)}
+            onBlur={() => setCommandInputFocused(false)}
             onChange={onCommandChange}
             onKeyDown={onCommandTextareaKeyDown}
           />
@@ -2052,6 +2057,8 @@ export function TerminalCommandControls({
             enterKeyHint="send"
             disabled={disabled}
             value={value}
+            onFocus={() => setCommandInputFocused(true)}
+            onBlur={() => setCommandInputFocused(false)}
             onChange={onCommandChange}
           />
         )}

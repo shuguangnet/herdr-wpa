@@ -39,6 +39,8 @@ function modifierState(
 type Props = {
   board: KeyBoard;
   disabled: boolean;
+  /** Only render the first row; used while the soft keyboard is open. */
+  compact?: boolean;
   /** Receives one entry per chord step, already encoded to terminal bytes. */
   onSend: (chunks: string[]) => void;
   onEdit?: () => void;
@@ -48,7 +50,7 @@ type Props = {
  * The phone key board. Keys are data (`mobileKeyBoard`); this component only
  * renders the grid, tracks sticky modifiers and routes taps to `onSend`.
  */
-export function MobileKeyPad({ board, disabled, onSend, onEdit }: Props) {
+export function MobileKeyPad({ board, disabled, compact = false, onSend, onEdit }: Props) {
   const hapticsEnabled = useHapticsEnabled();
   const [armed, setArmed] = useState<ModifierName[]>([]);
   const [locked, setLocked] = useState<ModifierName[]>([]);
@@ -185,8 +187,25 @@ export function MobileKeyPad({ board, disabled, onSend, onEdit }: Props) {
       }, REPEAT_DELAY_MS);
     };
 
+  const cancelPress = () => {
+    stopRepeat();
+    // A cancelled pointer never produces a click, so release the guard at once.
+    pointerSent.current = null;
+  };
+
   const endPress = () => {
     stopRepeat();
+    // A touch press may not produce a click (preventDefault or a cancelled
+    // pointer). Clear the guard on the next tick so it cannot swallow a later
+    // keyboard or screen-reader activation of the same key.
+    const anchor = pointerSent.current;
+    if (anchor !== null) {
+      window.setTimeout(() => {
+        if (pointerSent.current === anchor) {
+          pointerSent.current = null;
+        }
+      }, 0);
+    }
   };
 
   const click =
@@ -212,6 +231,9 @@ export function MobileKeyPad({ board, disabled, onSend, onEdit }: Props) {
           }
           const { row, col } = cellPosition(index);
           const { w, h } = sizeOf(key);
+          if (compact && (row > 0 || h > 1)) {
+            return null;
+          }
           const state = key.kind === "mod" ? modifierState(key.mod, armed, locked) : "off";
           const label = boardKeyLabel(key);
           const isConfirming = confirming === index;
@@ -243,7 +265,7 @@ export function MobileKeyPad({ board, disabled, onSend, onEdit }: Props) {
               onPointerDown={startPress(index, key)}
               onPointerUp={endPress}
               onPointerLeave={endPress}
-              onPointerCancel={endPress}
+              onPointerCancel={cancelPress}
               onClick={click(index, key)}
             >
               {isConfirming ? "Again" : label}

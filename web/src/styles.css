@@ -3808,3 +3808,16 @@ button {
 .pwa-update-apply {
   border-color: var(--accent);
 }
+
+/* Compact header: explicit previous/next pane buttons, because the terminal
+   canvas is excluded from swipe gestures to protect text selection. */
+.stage-pane-switch {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+.stage-pane-switch .icon-btn {
+  width: 34px;
+  min-width: 34px;
+}

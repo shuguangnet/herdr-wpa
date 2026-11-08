@@ -26,9 +26,11 @@ function boardWithSingleChar(): KeyBoard {
   return withKey.board;
 }
 
-function renderBoard(board: KeyBoard, disabled = false) {
+function renderBoard(board: KeyBoard, disabled = false, compact = false) {
   act(() => {
-    root.render(<MobileKeyPad board={board} disabled={disabled} onSend={onSend} />);
+    root.render(
+      <MobileKeyPad board={board} disabled={disabled} compact={compact} onSend={onSend} />,
+    );
   });
 }
 
@@ -153,6 +155,34 @@ describe("MobileKeyPad", () => {
       vi.advanceTimersByTime(500);
     });
     expect(onSend.mock.calls.length).toBe(callsAfterRelease);
+  });
+
+  it("does not swallow a click after a cancelled touch press", () => {
+    renderBoard(DEFAULT_BOARD);
+    const key = button("Send C-c");
+    act(() => {
+      key.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 2,
+          isPrimary: true,
+          button: 0,
+        }),
+      );
+      key.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true, pointerId: 2 }));
+    });
+    onSend.mockClear();
+    click(button("Send C-c"));
+    expect(onSend).toHaveBeenCalledWith(["\x03"]);
+  });
+
+  it("renders only the first row in compact mode", () => {
+    renderBoard(DEFAULT_BOARD, false, true);
+    const labels = [...container.querySelectorAll("button")].map((button) =>
+      button.textContent?.trim(),
+    );
+    expect(labels).toEqual(["Esc", "Tab", "Bksp", "Ctrl", "↑", "C-c", "C-d"]);
   });
 
   it("does not send while disabled", () => {

@@ -4239,6 +4239,28 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
               <RefreshCw size={18} />
             </button>
           ) : null}
+          {isCompactLayout && selectedPane ? (
+            <div className="stage-pane-switch" role="group" aria-label="Switch pane">
+              <button
+                className="icon-btn"
+                type="button"
+                aria-label="Previous pane"
+                title="Previous pane"
+                onClick={() => swipeToAdjacentPane(-1)}
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                className="icon-btn"
+                type="button"
+                aria-label="Next pane"
+                title="Next pane"
+                onClick={() => swipeToAdjacentPane(1)}
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          ) : null}
           {selectedPane ? <StatusBadge status={selectedPane.agent_status} /> : null}
         </header>
         <ConnectionStatusBar
@@ -9809,7 +9831,7 @@ function stageBreadcrumb(
   return [workspace?.label, tabLabel].filter(Boolean).join(" · ") || pane.pane_id;
 }
 
-async function fetchSnapshot(
+export async function fetchSnapshot(
   httpUrl: (path: string, query?: URLSearchParams) => string,
   etag: string | null = null,
 ) {
@@ -9822,7 +9844,25 @@ async function fetchSnapshot(
     return null;
   }
   if (!response.ok) {
-    throw new Error(`snapshot failed: ${response.status}`);
+    // The bridge reports upstream failures as {"error": "..."}; keep that text
+    // so the status bar can tell a Herdr outage from an unreachable bridge.
+    let detail = "";
+    try {
+      const text = await response.text();
+      if (text) {
+        try {
+          const parsed = JSON.parse(text) as { error?: unknown };
+          detail = typeof parsed.error === "string" ? parsed.error : text;
+        } catch {
+          detail = text;
+        }
+      }
+    } catch {
+      // Body already consumed or unreadable; the status code still helps.
+    }
+    throw new Error(
+      `snapshot failed: ${response.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`,
+    );
   }
   return {
     snapshot: (await response.json()) as Snapshot,
