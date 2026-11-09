@@ -4117,3 +4117,47 @@ button {
     padding-right: 44px;
   }
 }
+
+/* Compact header: secondary actions live behind a small menu. */
+.header-menu-wrap {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.header-menu-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  border: 0;
+  background: transparent;
+}
+
+.header-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 31;
+  display: flex;
+  min-width: 184px;
+  flex-direction: column;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--base);
+  box-shadow: 0 14px 36px rgb(0 0 0 / 0.45);
+}
+
+.header-menu button {
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+}
+
+.header-menu button:active {
+  background: var(--surface0);
+}

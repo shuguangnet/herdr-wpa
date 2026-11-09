@@ -28,6 +28,8 @@
 
 ### Changed
 
+- Move refit, pin, and notes behind a small menu in the compact header, and let a quick flick on the
+  terminal switch panes (slower drags still select text).
 - Pick one- or two-column layout from width and height together: landscape phones stay single
   column, tablets get the sidebar beside the terminal, and very wide windows stay desktop.
 - Make Settings full-screen on phones and show a boot spinner before the app shell loads.

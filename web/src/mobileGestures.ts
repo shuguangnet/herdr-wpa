@@ -9,6 +9,8 @@ export const GESTURE_MIN_SWIPE_PX = 48;
 export const GESTURE_PULL_REFRESH_PX = 64;
 /** After a navigation gesture, ignore the synthetic click the browser emits. */
 export const GESTURE_CLICK_SWALLOW_MS = 350;
+/** A canvas swipe must finish quickly to count as navigation, not selection. */
+export const GESTURE_QUICK_SWIPE_MS = 260;
 
 export type GestureIntent =
   | "pending"
@@ -119,12 +121,20 @@ const EXCLUDED_SELECTOR = [
   ".mobile-key-board",
   ".mobile-key-editor",
   ".overlay-root",
-  "canvas",
   "[data-gesture-ignore]",
 ].join(",");
 
 /** Gestures never start on a control, a terminal canvas or an overlay. */
 let swallowClickUntil = 0;
+
+/**
+ * The terminal canvas normally belongs to text selection. A quick flick is far
+ * more likely to mean "next pane" than a deliberate selection drag, so canvas
+ * swipes are accepted only inside the quick window.
+ */
+export function shouldAllowCanvasGesture(fromCanvas: boolean, durationMs: number): boolean {
+  return !fromCanvas || durationMs <= GESTURE_QUICK_SWIPE_MS;
+}
 
 /** Whether a click landing now belongs to the gesture that just finished. */
 export function shouldSwallowClick(now: number, until: number): boolean {
@@ -149,6 +159,8 @@ export type MobileGestureOptions = {
 type GestureStart = {
   x: number;
   y: number;
+  startedAt: number;
+  fromCanvas: boolean;
   edgeStart: boolean;
   atTop: boolean;
   axis: "none" | "horizontal" | "vertical";
@@ -186,6 +198,11 @@ export function useMobileGestures(options: MobileGestureOptions): void {
       start = {
         x: event.clientX,
         y: event.clientY,
+        startedAt: performance.now(),
+        fromCanvas:
+          typeof Element !== "undefined" &&
+          event.target instanceof Element &&
+          event.target.closest("canvas") !== null,
         edgeStart: event.clientX <= GESTURE_EDGE_PX,
         atTop: (window.scrollY ?? 0) <= 0,
         axis: "none",
@@ -211,14 +228,26 @@ export function useMobileGestures(options: MobileGestureOptions): void {
       if (!start || !event.isPrimary) {
         return;
       }
-      const gesture = resolveGesture({
-        dx: event.clientX - start.x,
-        dy: event.clientY - start.y,
-        width: window.innerWidth,
-        edgeStart: start.edgeStart,
-        atTop: start.atTop,
-      });
+      const started = start;
       reset();
+      const gesture = resolveGesture({
+        dx: event.clientX - started.x,
+        dy: event.clientY - started.y,
+        width: window.innerWidth,
+        edgeStart: started.edgeStart,
+        atTop: started.atTop,
+      });
+      if (gesture === "pending" || gesture === "none") {
+        return;
+      }
+      if (
+        !shouldAllowCanvasGesture(
+          started.fromCanvas,
+          performance.now() - started.startedAt,
+        )
+      ) {
+        return;
+      }
       if (gesture === "swipe-left" || gesture === "swipe-right" || gesture === "back") {
         // The browser still emits a click at the pointer-up position; without
         // this the gesture would also tap whatever sat there.

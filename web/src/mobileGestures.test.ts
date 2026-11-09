@@ -11,6 +11,7 @@ import {
   isGestureExcludedTarget,
   parseMobileGesturesEnabled,
   resolveGesture,
+  shouldAllowCanvasGesture,
   shouldSwallowClick,
 } from "./mobileGestures";
 
@@ -63,10 +64,18 @@ describe("isGestureExcludedTarget", () => {
 
     expect(isGestureExcludedTarget(input)).toBe(true);
     expect(isGestureExcludedTarget(key)).toBe(true);
-    expect(isGestureExcludedTarget(canvas)).toBe(true);
+    expect(isGestureExcludedTarget(canvas)).toBe(false);
     expect(isGestureExcludedTarget(ignored)).toBe(true);
     expect(isGestureExcludedTarget(plain)).toBe(false);
     expect(isGestureExcludedTarget(null)).toBe(false);
+  });
+});
+
+describe("shouldAllowCanvasGesture", () => {
+  it("accepts canvas swipes only when they are quick flicks", () => {
+    expect(shouldAllowCanvasGesture(false, 2000)).toBe(true);
+    expect(shouldAllowCanvasGesture(true, 120)).toBe(true);
+    expect(shouldAllowCanvasGesture(true, 600)).toBe(false);
   });
 });
 

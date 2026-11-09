@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  MoreHorizontal,
   Link2,
   ListCollapse,
   ListRestart,
@@ -1222,6 +1223,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refitToken, setRefitToken] = useState(0);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [terminalFocusToken, setTerminalFocusToken] = useState(0);
   useKeyboardInset();
   const pwaUpdate = usePwaUpdate();
@@ -4299,7 +4301,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
               </button>
             </>
           ) : null}
-          {selectedPane && notesEnabled ? (
+          {selectedPane && notesEnabled && !isCompactLayout ? (
             <button
               className="icon-btn notes-button"
               type="button"
@@ -4312,7 +4314,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
               <StickyNote size={18} />
             </button>
           ) : null}
-          {selectedPane && selectedRuntime && selectedPanePinsSupported ? (
+          {selectedPane && selectedRuntime && selectedPanePinsSupported && !isCompactLayout ? (
             <button
               className="icon-btn stage-pin-button"
               type="button"
@@ -4327,7 +4329,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
               <Pin size={16} />
             </button>
           ) : null}
-          {selectedPane ? (
+          {selectedPane && !isCompactLayout ? (
             <button
               className="icon-btn"
               type="button"
@@ -4358,6 +4360,71 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
               >
                 <ChevronRight size={18} />
               </button>
+            </div>
+          ) : null}
+          {isCompactLayout && selectedPane ? (
+            <div className="header-menu-wrap">
+              <button
+                className="icon-btn"
+                type="button"
+                aria-label="Pane actions"
+                title="Pane actions"
+                aria-haspopup="menu"
+                aria-expanded={headerMenuOpen}
+                onClick={() => setHeaderMenuOpen((open) => !open)}
+              >
+                <MoreHorizontal size={18} />
+              </button>
+              {headerMenuOpen ? (
+                <>
+                  <button
+                    className="header-menu-scrim"
+                    type="button"
+                    aria-label="Close pane actions"
+                    onClick={() => setHeaderMenuOpen(false)}
+                  />
+                  <div className="header-menu" role="menu" aria-label="Pane actions">
+                    <button
+                      role="menuitem"
+                      type="button"
+                      onClick={() => {
+                        setRefitToken((token) => token + 1);
+                        setHeaderMenuOpen(false);
+                      }}
+                    >
+                      Refit terminal
+                    </button>
+                    {selectedRuntime && selectedPanePinsSupported ? (
+                      <button
+                        role="menuitem"
+                        type="button"
+                        onClick={() => {
+                          void toggleAgentPin(
+                            selectedRuntime.id,
+                            selectedPane.pane_id,
+                            selectedPanePinned,
+                          );
+                          setHeaderMenuOpen(false);
+                        }}
+                      >
+                        {selectedPanePinned ? "Unpin pane" : "Pin pane"}
+                      </button>
+                    ) : null}
+                    {notesEnabled ? (
+                      <button
+                        role="menuitem"
+                        type="button"
+                        onClick={() => {
+                          openNotesPanel();
+                          setHeaderMenuOpen(false);
+                        }}
+                      >
+                        Notes
+                      </button>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
             </div>
           ) : null}
           {selectedPane ? <StatusBadge status={selectedPane.agent_status} /> : null}
