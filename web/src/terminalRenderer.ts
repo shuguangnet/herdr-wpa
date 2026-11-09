@@ -157,6 +157,8 @@ export type TerminalRenderer = {
   scrollToBottom(): void;
   /** Renders at least this PTY size even when the container is smaller. */
   setMinimumSize(cols: number, rows: number): void;
+  /** Whether the viewport is pinned to the newest output. */
+  isAtBottom(): boolean;
   setScrollSensitivity(value: number): void;
   dispose(): void;
 };
@@ -282,6 +284,14 @@ export class GhosttyRenderer implements TerminalRenderer {
 
   scrollToBottom() {
     this.#terminal?.scrollToBottom();
+  }
+
+  isAtBottom() {
+    const terminal = this.#terminal;
+    if (!terminal) {
+      return true;
+    }
+    return Math.floor(terminal.getViewportY()) >= terminal.getScrollbackLength();
   }
 
   setMinimumSize(cols: number, rows: number) {

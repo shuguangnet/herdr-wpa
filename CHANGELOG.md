@@ -6,6 +6,9 @@
 
 ### Added
 
+- Add an ambient top progress bar for in-flight writes (delayed so fast actions do not flash it),
+  and flag new terminal output when the viewport is scrolled up while the scroll-to-bottom button
+  is visible.
 - Add a PWA install row: an `Install` button when the browser offers one, and the
   Share → Add to Home Screen steps on iOS before the app is installed.
 - Add phone conveniences: a scroll-to-bottom button, clipboard paste, two-finger font zoom, a screen

@@ -246,6 +246,8 @@ function TerminalViewComponent({
   const delayConnectingOverlayRef = useRef(false);
   const [connectionState, setConnectionState] = useState<TerminalConnectionState>("idle");
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [hasNewOutput, setHasNewOutput] = useState(false);
+  const hasNewOutputRef = useRef(false);
   useEffect(() => {
     onConnectionStateChange?.(connectionState);
   }, [connectionState, onConnectionStateChange]);
@@ -591,8 +593,11 @@ function TerminalViewComponent({
           sendTerminalInputData(data);
         });
         disposeScroll = renderer.onScroll((lines) => {
-          if (lines !== 0) {
-            setShowScrollToBottom(true);
+          const atBottom = renderer.isAtBottom();
+          setShowScrollToBottom(!atBottom);
+          if (atBottom) {
+            hasNewOutputRef.current = false;
+            setHasNewOutput(false);
           }
           const socket = socketRef.current;
           if (socket?.readyState !== WebSocket.OPEN || lines === 0) {
@@ -804,6 +809,10 @@ function TerminalViewComponent({
         return;
       }
       ready.renderer.write(data);
+      if (!ready.renderer.isAtBottom() && !hasNewOutputRef.current) {
+        hasNewOutputRef.current = true;
+        setHasNewOutput(true);
+      }
     };
 
     const connectSocket = (reason: ReconnectReason, connectTimeoutMs: number) => {
@@ -1490,18 +1499,22 @@ function TerminalViewComponent({
       onPasteCapture={handlePaste}
     >
       <div ref={hostRef} className="terminal-host" />
-      {showScrollToBottom && connectionState === "attached" ? (
+      {(showScrollToBottom || hasNewOutput) && connectionState === "attached" ? (
         <button
           className="icon-btn terminal-scroll-bottom"
           type="button"
-          aria-label="Scroll to bottom"
-          title="Scroll to bottom"
+          aria-label={hasNewOutput ? "New output below, scroll to bottom" : "Scroll to bottom"}
+          title={hasNewOutput ? "New output below" : "Scroll to bottom"}
+          data-new={hasNewOutput ? "true" : "false"}
           onClick={() => {
             rendererRef.current?.scrollToBottom();
             setShowScrollToBottom(false);
+            hasNewOutputRef.current = false;
+            setHasNewOutput(false);
           }}
         >
           <ArrowDown size={18} />
+          {hasNewOutput ? <span className="terminal-scroll-bottom-dot" aria-hidden="true" /> : null}
         </button>
       ) : null}
       {pane && terminalScreenReaderText ? (

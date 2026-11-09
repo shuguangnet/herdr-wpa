@@ -4017,3 +4017,57 @@ button {
   color: var(--subtext0);
   font-size: 12px;
 }
+
+/* Ambient write progress: a hairline at the very top, delayed so fast actions
+   never flash it. */
+.busy-bar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 120;
+  height: 2px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.busy-bar-indicator {
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: busy-bar-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes busy-bar-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .busy-bar-indicator {
+    width: 100%;
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+.terminal-scroll-bottom[data-new="true"] {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.terminal-scroll-bottom-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--accent);
+}

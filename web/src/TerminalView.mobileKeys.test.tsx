@@ -18,6 +18,9 @@ const renderer = vi.hoisted(() => ({
   setAccessibleScreenListener: vi.fn(),
   onInput: vi.fn(),
   onScroll: vi.fn(),
+  write: vi.fn(),
+  scrollToBottom: vi.fn(),
+  isAtBottom: vi.fn().mockReturnValue(true),
 }));
 vi.mock("./terminalRenderer", () => ({
   GhosttyRenderer: class { constructor() { return renderer; } },
@@ -53,6 +56,36 @@ afterEach(async () => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+});
+
+it("flags new output while the viewport is scrolled up", async () => {
+  await act(async () => root.render(
+    <CommandDraftContext.Provider value={createCommandDraftStore()}>
+      <TerminalView bridgeId="bridge" connectionKey="bridge" resumeToken={0}
+        pane={{ pane_id: "pane", terminal_id: "terminal", workspace_id: "workspace",
+          tab_id: "tab", focused: true, agent_status: "idle", revision: 1 }}
+        httpUrl={(path) => `http://localhost${path}`}
+        wsUrl={(path) => `ws://localhost${path}`}
+        mobileControls autoFocus={false} />
+    </CommandDraftContext.Provider>,
+  ));
+  const socket = TestSocket.instances.at(-1)!;
+  await act(async () => socket.dispatchEvent(new Event("open")));
+
+  renderer.isAtBottom.mockReturnValue(false);
+  await act(async () => socket.dispatchEvent(new MessageEvent("message", {
+    data: new Uint8Array([65, 66]).buffer,
+  })));
+  expect(
+    container.querySelector(".terminal-scroll-bottom")?.getAttribute("data-new"),
+  ).toBe("true");
+  const button = container.querySelector<HTMLButtonElement>(
+    '[aria-label="New output below, scroll to bottom"]',
+  );
+  expect(button).not.toBeNull();
+  await act(async () => button!.click());
+  expect(container.querySelector(".terminal-scroll-bottom")).toBeNull();
+  renderer.isAtBottom.mockReturnValue(true);
 });
 
 it("keeps Backspace repeating while screen-reader output rerenders the terminal", async () => {

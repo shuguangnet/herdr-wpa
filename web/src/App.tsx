@@ -155,6 +155,8 @@ import {
 import { commitSnapshotState, snapshotFingerprint } from "./snapshotState";
 import { ConnectionStatusBar } from "./ConnectionStatusBar";
 import { StatusToast } from "./StatusToast";
+import { BusyBar } from "./BusyBar";
+import { trackBusy } from "./busy";
 import { clearStatus, setStatus, useStatus } from "./status";
 import { PwaUpdateBar } from "./PwaUpdateBar";
 import { usePwaUpdate } from "./usePwaUpdate";
@@ -3673,6 +3675,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
     }
     const requestConnectionKey = runtime.connectionKey;
     setBusy(true);
+    const finishBusy = trackBusy();
     try {
       const result = await action();
       let ref = connectionRefs.current[runtime.id];
@@ -3722,6 +3725,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
       return false;
     } finally {
       setBusy(false);
+      finishBusy();
     }
   }
 
@@ -3969,6 +3973,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
       data-touch={isTouchInput ? "true" : "false"}
       data-detail={isCompactLayout && showDetail ? "true" : "false"}
     >
+      <BusyBar />
       <span className="sr-only" aria-live="polite" aria-atomic="true">
         {spaceReorderAnnouncement}
       </span>
