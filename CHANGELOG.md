@@ -45,6 +45,9 @@
 
 ### Fixed
 
+- Keep the mobile terminal's row count tied to the viewport so the bottom lines are no longer
+  clipped when Herdr's PTY is taller than the phone screen, and allow horizontal panning when the
+  PTY is wider than the phone.
 - Swallow the synthetic click that follows a navigation gesture, and lock horizontal overscroll
   while a terminal is mounted so PTY-width scrolling does not drag the page.
 - Clamp browser terminal resizes to the pane size Herdr already uses, so connecting from a narrow

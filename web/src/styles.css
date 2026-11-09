@@ -4071,3 +4071,10 @@ button {
   border-radius: 999px;
   background: var(--accent);
 }
+
+/* Let the browser pan horizontally so a PTY wider than the phone stays
+   reachable; vertical panning still belongs to the terminal (scrollback,
+   selection), so it is intentionally not granted here. */
+.terminal-host {
+  touch-action: pan-x;
+}

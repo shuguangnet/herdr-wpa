@@ -300,11 +300,12 @@ export class GhosttyRenderer implements TerminalRenderer {
   }
 
   #applyMinimumSize(terminal: Terminal) {
-    if (terminal.cols < this.#minCols || terminal.rows < this.#minRows) {
-      terminal.resize(
-        Math.max(terminal.cols, this.#minCols),
-        Math.max(terminal.rows, this.#minRows),
-      );
+    // Only the width is pinned to the PTY. Forcing the row count would render
+    // more rows than the phone can show and clip the bottom of the screen;
+    // letting rows follow the container keeps every line reachable (the extra
+    // PTY rows scroll into the local scrollback).
+    if (terminal.cols < this.#minCols) {
+      terminal.resize(this.#minCols, terminal.rows);
     }
   }
 
