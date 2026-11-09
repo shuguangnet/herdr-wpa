@@ -83,7 +83,7 @@ describe("BackendSettingsDialog terminal accessibility", () => {
     await act(async () => tab!.click());
     const group = requiredElement<HTMLElement>(
       container,
-      '[role="group"][aria-label="Browser sizes terminal"]',
+      '[role="group"][aria-label="Fit terminal to this screen"]',
     );
     const [off, on] = Array.from(group.querySelectorAll<HTMLButtonElement>("button"));
     expect(off.getAttribute("aria-pressed")).toBe("true");

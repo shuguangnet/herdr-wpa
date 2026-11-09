@@ -965,13 +965,13 @@ export function BackendSettingsDialog({
                   </div>
                 </div>
                 <div className="settings-row">
-                  <span title="Off keeps Herdr's pane size and scrolls horizontally on narrow screens">
-                    Browser sizes terminal
+                  <span title="On fits the shared terminal to this screen; Off keeps Herdr's pane size">
+                    Fit terminal to this screen
                   </span>
                   <div
                     className="segmented-control"
                     role="group"
-                    aria-label="Browser sizes terminal"
+                    aria-label="Fit terminal to this screen"
                   >
                     <button
                       type="button"

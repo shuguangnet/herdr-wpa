@@ -28,6 +28,9 @@
 
 ### Changed
 
+- Phones now fit the shared terminal to the screen by default (the Mobile setting is now "Fit
+  terminal to this screen"); turning it off keeps Herdr's pane size. Changing it reconnects the
+  terminal immediately.
 - Route transient feedback through one status toast over the stage, replacing the separate error
   toast, agent notice bar, paste status line, and upload status overlay.
 - Simplify the mobile dock into one key board block and one input bar: attachment actions move into

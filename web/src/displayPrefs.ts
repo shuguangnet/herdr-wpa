@@ -2,7 +2,8 @@ export const DEFAULT_CONTENT_INSET_TOP_PX = 0;
 export const DEFAULT_CONTENT_INSET_BOTTOM_PX = 0;
 export const DEFAULT_MOBILE_CONTROLS_SCALE_PERCENT = 100;
 export const DEFAULT_MOBILE_KEY_PAD_ENABLED = true;
-export const DEFAULT_TERMINAL_OWNS_SIZE = false;
+/** null means "not chosen yet": phones then default to fitting their screen. */
+export const DEFAULT_TERMINAL_OWNS_SIZE: boolean | null = null;
 export const DEFAULT_AGENT_FEATURES_IN_TABS = true;
 export const DEFAULT_MULTI_HOST_SPACE_SELECTION = true;
 
@@ -13,7 +14,7 @@ export const MAX_CONTENT_INSET_BOTTOM_PX = 160;
 export const MIN_MOBILE_CONTROLS_SCALE_PERCENT = 80;
 export const MAX_MOBILE_CONTROLS_SCALE_PERCENT = 150;
 
-export function parseTerminalOwnsSize(value: unknown) {
+export function parseTerminalOwnsSize(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : DEFAULT_TERMINAL_OWNS_SIZE;
 }
 

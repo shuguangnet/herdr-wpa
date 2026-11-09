@@ -1173,6 +1173,7 @@ function TerminalViewComponent({
     pane?.terminal_id,
     rendererReady,
     terminalOutputCoalesceMs,
+    terminalOwnsSize,
     wsUrl,
   ]);
 

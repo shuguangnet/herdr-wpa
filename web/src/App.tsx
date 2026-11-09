@@ -457,7 +457,7 @@ type DisplayPrefs = {
   desktopCommandComposer: boolean;
   desktopCommandEnterNewline: boolean;
   terminalScreenReaderText: boolean;
-  terminalOwnsSize: boolean;
+  terminalOwnsSize: boolean | null;
   autoRenameUploadConflicts: boolean;
   terminalInputTransport: TerminalInputTransport;
   terminalInputBatchDelayMs: number;
@@ -1148,7 +1148,9 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
   const [terminalScreenReaderText, setTerminalScreenReaderText] = useState(
     initialPrefs.terminalScreenReaderText,
   );
-  const [terminalOwnsSize, setTerminalOwnsSize] = useState(initialPrefs.terminalOwnsSize);
+  const [terminalOwnsSize, setTerminalOwnsSize] = useState<boolean | null>(
+    initialPrefs.terminalOwnsSize,
+  );
   const [autoRenameUploadConflicts, setAutoRenameUploadConflicts] = useState(
     initialPrefs.autoRenameUploadConflicts,
   );
@@ -4402,7 +4404,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
             terminalCursorBlink={terminalCursorBlink}
             terminalFontSizePx={terminalFontSizePx}
             terminalScreenReaderText={terminalScreenReaderText}
-            terminalOwnsSize={terminalOwnsSize}
+            terminalOwnsSize={terminalOwnsSize ?? isTouchInput}
             autoRenameUploadConflicts={autoRenameUploadConflicts}
             mobileControlsScalePercent={mobileControlsScalePercent}
             mobileTapTarget={mobileTerminalTapTarget}
@@ -4439,7 +4441,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
             cursorBlink={!isTouchInput && terminalCursorBlink}
             terminalFontSizePx={terminalFontSizePx}
             terminalScreenReaderText={terminalScreenReaderText}
-            terminalOwnsSize={terminalOwnsSize}
+            terminalOwnsSize={terminalOwnsSize ?? isTouchInput}
             autoRenameUploadConflicts={autoRenameUploadConflicts}
             mobileControlsScalePercent={mobileControlsScalePercent}
             mobileTapTarget={mobileTerminalTapTarget}
@@ -4686,7 +4688,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
           onDesktopCommandEnterNewline={setDesktopCommandEnterNewline}
           terminalScreenReaderText={terminalScreenReaderText}
           onTerminalScreenReaderText={setTerminalScreenReaderText}
-          terminalOwnsSize={terminalOwnsSize}
+          terminalOwnsSize={terminalOwnsSize ?? isTouchInput}
           onTerminalOwnsSize={setTerminalOwnsSize}
           autoRenameUploadConflicts={autoRenameUploadConflicts}
           onAutoRenameUploadConflicts={setAutoRenameUploadConflicts}
