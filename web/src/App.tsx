@@ -490,6 +490,23 @@ const TOUCH_INPUT_QUERY = "(hover: none) and (pointer: coarse)";
 const DISPLAY_PREFS_KEY = "herdr.mobileWeb.displayPrefs.v2";
 const SHARED_NAVIGATION_PREFS_KEY = "herdr.mobileWeb.sharedNavigation.v1";
 const LEGACY_DISPLAY_PREFS_KEY = "herdr.mobileWeb.displayPrefs.v1";
+const TERMINAL_OWNS_SIZE_EXPLICIT_KEY = "herdr.mobileWeb.terminalOwnsSizeExplicit.v1";
+
+function readTerminalOwnsSizeExplicit(): boolean {
+  try {
+    return window.localStorage.getItem(TERMINAL_OWNS_SIZE_EXPLICIT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markTerminalOwnsSizeExplicit(): void {
+  try {
+    window.localStorage.setItem(TERMINAL_OWNS_SIZE_EXPLICIT_KEY, "1");
+  } catch {
+    // Private mode: the choice still applies for this session.
+  }
+}
 const MOBILE_SIDEBAR_HISTORY_KEY = "herdrWebMobileSidebar";
 const MOBILE_DETAIL_HISTORY_KEY = "herdrWebMobileDetail";
 const DEFAULT_SIDEBAR_WIDTH = 320;
@@ -1148,9 +1165,16 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
   const [terminalScreenReaderText, setTerminalScreenReaderText] = useState(
     initialPrefs.terminalScreenReaderText,
   );
-  const [terminalOwnsSize, setTerminalOwnsSize] = useState<boolean | null>(
-    initialPrefs.terminalOwnsSize,
+  const [terminalOwnsSize, setTerminalOwnsSizeState] = useState<boolean | null>(() =>
+    // Older builds persisted `false` as a default. Only honor a stored value
+    // that came from an explicit choice; otherwise the device default wins
+    // (phones fit their screen, desktops keep Herdr's size).
+    readTerminalOwnsSizeExplicit() ? initialPrefs.terminalOwnsSize : null,
   );
+  const setTerminalOwnsSize = useCallback((value: boolean) => {
+    markTerminalOwnsSizeExplicit();
+    setTerminalOwnsSizeState(value);
+  }, []);
   const [autoRenameUploadConflicts, setAutoRenameUploadConflicts] = useState(
     initialPrefs.autoRenameUploadConflicts,
   );
@@ -1304,7 +1328,9 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
       setDesktopCommandComposer(prefs.desktopCommandComposer);
       setDesktopCommandEnterNewline(prefs.desktopCommandEnterNewline);
       setTerminalScreenReaderText(prefs.terminalScreenReaderText);
-      setTerminalOwnsSize(prefs.terminalOwnsSize);
+      if (readTerminalOwnsSizeExplicit()) {
+        setTerminalOwnsSizeState(prefs.terminalOwnsSize);
+      }
       setAutoRenameUploadConflicts(prefs.autoRenameUploadConflicts);
       setTerminalInputTransport(prefs.terminalInputTransport);
       setTerminalInputBatchDelayMs(prefs.terminalInputBatchDelayMs);
