@@ -28,6 +28,9 @@
 
 ### Changed
 
+- Remember each terminal's scrollback position across pane and tab switches.
+- Float the PWA update prompt and the first-run hint over the stage instead of taking layout rows,
+  and collapse the key board in short landscape viewports.
 - Phones now fit the shared terminal to the screen by default (the Mobile setting is now "Fit
   terminal to this screen"); turning it off keeps Herdr's pane size. Changing it reconnects the
   terminal immediately.

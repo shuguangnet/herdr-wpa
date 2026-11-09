@@ -75,6 +75,12 @@ class FakeTerminalRenderer implements TerminalRenderer {
     return true;
   }
 
+  getViewportY() {
+    return 0;
+  }
+
+  scrollToViewportY() {}
+
   setScrollSensitivity() {}
 
   dispose() {}

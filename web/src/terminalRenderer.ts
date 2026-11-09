@@ -159,6 +159,10 @@ export type TerminalRenderer = {
   setMinimumSize(cols: number, rows: number): void;
   /** Whether the viewport is pinned to the newest output. */
   isAtBottom(): boolean;
+  /** Absolute viewport offset in the scrollback, for restoring after a remount. */
+  getViewportY(): number;
+  /** Scrolls back to an absolute viewport offset (clamped by the buffer). */
+  scrollToViewportY(viewportY: number): void;
   setScrollSensitivity(value: number): void;
   dispose(): void;
 };
@@ -283,6 +287,21 @@ export class GhosttyRenderer implements TerminalRenderer {
 
   scrollToBottom() {
     this.#terminal?.scrollToBottom();
+  }
+
+  getViewportY() {
+    return this.#terminal ? Math.floor(this.#terminal.getViewportY()) : 0;
+  }
+
+  scrollToViewportY(viewportY: number) {
+    const terminal = this.#terminal;
+    if (!terminal) {
+      return;
+    }
+    const delta = Math.floor(viewportY) - Math.floor(terminal.getViewportY());
+    if (delta !== 0) {
+      terminal.scrollLines(delta);
+    }
   }
 
   isAtBottom() {

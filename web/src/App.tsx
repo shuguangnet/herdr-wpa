@@ -4385,7 +4385,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
             </label>
           </div>
         ) : null}
-        {showMobileHint ? (
+        {showMobileHint && !pwaUpdate.needRefresh ? (
           <div className="mobile-hint" role="note">
             <span>
               Swipe or use ‹ › to switch panes. Tap Edit on the key board to customize it; Ctrl,

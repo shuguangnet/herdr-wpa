@@ -21,6 +21,8 @@ const renderer = vi.hoisted(() => ({
   write: vi.fn(),
   scrollToBottom: vi.fn(),
   isAtBottom: vi.fn().mockReturnValue(true),
+  getViewportY: vi.fn().mockReturnValue(0),
+  scrollToViewportY: vi.fn(),
 }));
 vi.mock("./terminalRenderer", () => ({
   GhosttyRenderer: class { constructor() { return renderer; } },

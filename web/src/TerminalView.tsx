@@ -63,6 +63,7 @@ import {
 import { parseTerminalSizeMessage } from "./terminalSize";
 import { clearStatus, setStatus } from "./status";
 import { useRootOverscrollLock } from "./useRootOverscrollLock";
+import { readTerminalScroll, saveTerminalScroll } from "./scrollMemory";
 import { DEFAULT_TERMINAL_FONT_SIZE_PX } from "./terminalPrefs";
 import {
   TERMINAL_FOREGROUND_FAST_ATTEMPTS,
@@ -661,6 +662,9 @@ function TerminalViewComponent({
         setRendererReady(null);
       }
       sendResizeRef.current = () => {};
+      if (terminalId) {
+        saveTerminalScroll(terminalId, renderer.getViewportY());
+      }
       renderer.dispose();
       if (rendererRef.current === renderer) {
         rendererRef.current = null;
@@ -800,6 +804,9 @@ function TerminalViewComponent({
       current?.close();
     };
 
+    const savedScroll = terminalId ? readTerminalScroll(terminalId) : null;
+    let restorePending = savedScroll;
+    let restoreAttempts = 0;
     const writeTerminalData = (socketId: number, data: Uint8Array) => {
       if (
         disposed ||
@@ -809,6 +816,23 @@ function TerminalViewComponent({
         return;
       }
       ready.renderer.write(data);
+      if (restorePending !== null) {
+        // The buffer may still be empty on the first frames; retry a few times
+        // until the saved offset exists, then stop interfering.
+        if (
+          ready.renderer.getViewportY() >= restorePending ||
+          restoreAttempts >= 3
+        ) {
+          restorePending = null;
+        } else {
+          ready.renderer.scrollToViewportY(restorePending);
+          restoreAttempts += 1;
+          if (ready.renderer.getViewportY() >= restorePending) {
+            restorePending = null;
+          }
+          return;
+        }
+      }
       if (!ready.renderer.isAtBottom() && !hasNewOutputRef.current) {
         hasNewOutputRef.current = true;
         setHasNewOutput(true);

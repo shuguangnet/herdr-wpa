@@ -4078,3 +4078,21 @@ button {
 .terminal-host {
   touch-action: pan-x;
 }
+
+/* Transient banners float over the stage instead of taking layout rows. */
+.pwa-update-bar,
+.mobile-hint {
+  position: absolute;
+  top: 56px;
+  right: 0;
+  left: 0;
+  z-index: 16;
+}
+
+/* Short landscape phones: the terminal needs every row it can get, so the
+   key board collapses and only the input bar stays. */
+@media (orientation: landscape) and (max-height: 480px) {
+  .terminal-command-controls .mobile-key-board-shell {
+    display: none;
+  }
+}
