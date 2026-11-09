@@ -182,7 +182,6 @@ export class GhosttyRenderer implements TerminalRenderer {
     DEFAULT_MOBILE_TOUCH_SELECTION_ENDPOINT_TIMEOUT_MS;
   #textInputTapGraceUntil = 0;
   #minCols = 0;
-  #minRows = 0;
   #fontSizePx: number;
   #cursorBlink: boolean;
   #eventDrivenRendering: boolean;
@@ -294,9 +293,11 @@ export class GhosttyRenderer implements TerminalRenderer {
     return Math.floor(terminal.getViewportY()) >= terminal.getScrollbackLength();
   }
 
-  setMinimumSize(cols: number, rows: number) {
+  setMinimumSize(cols: number, rows?: number) {
+    // Rows follow the viewport (see #applyMinimumSize); the argument is kept so
+    // the bridge message can carry the full PTY size.
+    void rows;
     this.#minCols = Math.max(1, Math.floor(cols));
-    this.#minRows = Math.max(1, Math.floor(rows));
   }
 
   #applyMinimumSize(terminal: Terminal) {
