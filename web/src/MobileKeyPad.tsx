@@ -43,14 +43,13 @@ type Props = {
   compact?: boolean;
   /** Receives one entry per chord step, already encoded to terminal bytes. */
   onSend: (chunks: string[]) => void;
-  onEdit?: () => void;
 };
 
 /**
  * The phone key board. Keys are data (`mobileKeyBoard`); this component only
  * renders the grid, tracks sticky modifiers and routes taps to `onSend`.
  */
-export function MobileKeyPad({ board, disabled, compact = false, onSend, onEdit }: Props) {
+export function MobileKeyPad({ board, disabled, compact = false, onSend }: Props) {
   const hapticsEnabled = useHapticsEnabled();
   const [armed, setArmed] = useState<ModifierName[]>([]);
   const [locked, setLocked] = useState<ModifierName[]>([]);
@@ -273,17 +272,6 @@ export function MobileKeyPad({ board, disabled, compact = false, onSend, onEdit 
           );
         })}
       </div>
-      {onEdit ? (
-        <button
-          className="term-key term-key-icon mobile-key-edit"
-          type="button"
-          aria-label="Edit key board"
-          title="Edit key board"
-          onClick={onEdit}
-        >
-          Edit
-        </button>
-      ) : null}
     </div>
   );
 }

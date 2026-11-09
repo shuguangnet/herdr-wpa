@@ -147,7 +147,7 @@ describe("TerminalCommandControls", () => {
     expect(secondField).not.toBe(firstField);
     expect(secondField.value).toBe("");
     expect(secondField.defaultValue).toBe("");
-    expect(stageButton(container).disabled).toBe(true);
+    expect((await stageButton(container)).disabled).toBe(true);
 
     await clickStage(container);
     expect(onStageCommand).toHaveBeenCalledOnce();
@@ -392,43 +392,39 @@ describe("TerminalCommandControls", () => {
     expect(container.querySelectorAll(".mobile-key-board .term-key")).toHaveLength(13);
   });
 
-  it("keeps fixed icon actions above the command field and preserves quick keys", async () => {
-    const { container, onInput, onUpload, onTerminalFocus, onStageCommand } =
-      await renderControls(false);
-    const actions = container.querySelector('[aria-label="Terminal actions"]');
-    if (!(actions instanceof HTMLElement)) {
-      throw new Error("Missing fixed terminal actions");
+  it("keeps one input bar with quiet attachment actions", async () => {
+    const { container, onInput, onUpload, onStageCommand } = await renderControls(false);
+    const form = container.querySelector("form");
+    if (!form) {
+      throw new Error("Missing command form");
     }
-    expect(
-      [...actions.querySelectorAll("button")].map((button) => button.getAttribute("aria-label")),
-    ).toEqual([
-      "Upload file",
-      "Paste from clipboard",
-      "Stage command in terminal",
-      "Show more keys",
-      "Focus terminal keyboard",
-    ]);
-    expect(actions.textContent?.trim()).toBe("");
-    expect(container.querySelector("form")?.querySelectorAll("button")).toHaveLength(1);
+    const inlineLabels = [...form.querySelectorAll<HTMLButtonElement>("button")]
+      .map((button) => button.getAttribute("aria-label"))
+      .filter(Boolean);
+    expect(inlineLabels).toEqual(["Show more keys", "Attach or paste", "Send enter"]);
+
     const keyBoard = container.querySelector('[aria-label="Terminal key board"]');
     if (!(keyBoard instanceof HTMLElement)) {
       throw new Error("Missing terminal key board");
     }
-    const keys = [...keyBoard.querySelectorAll("button")];
-    expect(keys.map((key) => key.textContent)).toEqual([
+    expect([...keyBoard.querySelectorAll("button")].map((button) => button.textContent)).toEqual([
       "Esc", "Tab", "Bksp", "Ctrl", "↑", "C-c", "C-d", "←", "↓", "→", "Enter", "Shift", "Alt",
     ]);
-    for (const label of ["Send Esc", "Send Tab", "Send ↑", "Send C-c"]) {
-      await clickButton(container, label);
-    }
-    expect(onInput.mock.calls).toEqual([["\x1B"], ["\t"], ["\x1B[A"], ["\x03"]]);
-    await clickButton(actions, "Upload file");
-    await clickButton(actions, "Focus terminal keyboard");
+
+    await clickButton(container, "Attach or paste");
+    await clickButton(container, "Upload file");
     expect(onUpload).toHaveBeenCalledOnce();
-    expect(onTerminalFocus).toHaveBeenCalledOnce();
+
     await setCommandValue(commandField(container), "stage me");
-    await clickButton(actions, "Stage command in terminal");
+    await clickButton(container, "Attach or paste");
+    await clickButton(container, "Stage command");
     expect(onStageCommand).toHaveBeenCalledWith("stage me");
+
+    await clickButton(container, "Send Esc");
+    expect(onInput).toHaveBeenCalledWith("\x1B");
+
+    await clickButton(container, "Show more keys");
+    expect(container.querySelector('[aria-label="Edit key board"]')).not.toBeNull();
   });
 
   it("allows closing Compose while disconnected but blocks sending and staging", async () => {
@@ -440,7 +436,7 @@ describe("TerminalCommandControls", () => {
 
     expect(composerPanel(container).querySelector<HTMLButtonElement>('[aria-label="Send ↑"]')?.disabled).toBe(true);
     expect(printableKeyField(container).disabled).toBe(true);
-    expect(stageButton(container).disabled).toBe(true);
+    expect((await stageButton(container)).disabled).toBe(true);
     await clickButton(container, "Send ↑");
     await clickStage(container);
     await clickButton(container, "Close terminal key composer");
@@ -746,9 +742,18 @@ async function submitForm(container: HTMLElement) {
   });
 }
 
-function stageButton(container: HTMLElement) {
-  const button = container.querySelector<HTMLButtonElement>(
+async function stageButton(container: HTMLElement) {
+  const desktop = container.querySelector<HTMLButtonElement>(
     'button[aria-label="Stage command in terminal"]',
+  );
+  if (desktop) {
+    return desktop;
+  }
+  if (!container.querySelector('[aria-label="Stage command"]')) {
+    await clickButton(container, "Attach or paste");
+  }
+  const button = container.querySelector<HTMLButtonElement>(
+    'button[aria-label="Stage command"]',
   );
   if (!button) {
     throw new Error("missing Stage button");
@@ -757,8 +762,9 @@ function stageButton(container: HTMLElement) {
 }
 
 async function clickStage(container: HTMLElement) {
+  const button = await stageButton(container);
   await act(async () => {
-    stageButton(container).click();
+    button.click();
   });
 }
 

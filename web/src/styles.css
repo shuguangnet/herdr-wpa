@@ -3913,3 +3913,47 @@ button {
 .terminal-host::-webkit-scrollbar {
   display: none;
 }
+
+/* Mobile dock: one key board block and one quiet input bar. */
+.term-input-row {
+  position: relative;
+}
+
+.term-input-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--mobile-control-gap);
+}
+
+.term-attachment-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 8px;
+  z-index: 5;
+  display: flex;
+  min-width: 190px;
+  flex-direction: column;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--base);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+}
+
+.term-attachment-menu button {
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+}
+
+.term-attachment-menu button:active {
+  background: var(--surface0);
+}
+
+.term-attachment-menu button:disabled {
+  opacity: 0.45;
+}

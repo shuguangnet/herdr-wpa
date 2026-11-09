@@ -2,15 +2,14 @@ import { useTerminalFocusRequest } from "./useTerminalFocusRequest";
 import { useCommandDraft } from "./commandDrafts";
 import {
   ArrowDown,
-  ClipboardPaste,
   Copy,
   ExternalLink,
   Keyboard,
   Link,
   Paperclip,
+  Pencil,
   Plus,
   Send,
-  SquareTerminal,
   TextCursorInput,
   X,
 } from "lucide-react";
@@ -1727,6 +1726,13 @@ export function TerminalCommandControls({
     setValue(event.currentTarget.value);
   };
   const [pasteStatus, setPasteStatus] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pasteStatus) {
+      return;
+    }
+    const timer = window.setTimeout(() => setPasteStatus(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [pasteStatus]);
   const pasteFromClipboard = async () => {
     if (disabled) {
       return;
@@ -1754,6 +1760,7 @@ export function TerminalCommandControls({
   const [moreKeysOpen, setMoreKeysOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [commandInputFocused, setCommandInputFocused] = useState(false);
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   const chordTimersRef = useRef<number[]>([]);
   const keyBoard = useKeyBoard();
   const [keyPadEditorOpen, setKeyPadEditorOpen] = useState(false);
@@ -1948,7 +1955,6 @@ export function TerminalCommandControls({
               board={keyBoard}
               disabled={disabled}
               compact={commandInputFocused}
-              onEdit={() => setKeyPadEditorOpen(true)}
               onSend={(chunks) => {
                 for (const chunk of chunks) {
                   onInput(chunk);
@@ -1979,58 +1985,6 @@ export function TerminalCommandControls({
             ))}
           </div>
         )}
-        <div className="term-key-actions" role="group" aria-label="Terminal actions">
-          <button
-            className="term-key term-key-icon"
-            type="button"
-            aria-label="Upload file"
-            title="Upload"
-            disabled={uploadDisabled}
-            onClick={onUpload}
-          >
-            <Paperclip size={15} />
-          </button>
-          <button
-            className="term-key term-key-icon"
-            type="button"
-            aria-label="Paste from clipboard"
-            title="Paste"
-            disabled={disabled}
-            onClick={() => void pasteFromClipboard()}
-          >
-            <ClipboardPaste size={15} />
-          </button>
-          {stageCommandButton}
-          <button
-            className="term-key term-key-icon"
-            type="button"
-            aria-label={moreKeysOpen ? "Hide more keys" : "Show more keys"}
-            aria-expanded={moreKeysOpen}
-            title={moreKeysOpen ? "Hide more keys" : "More keys"}
-            onClick={() => {
-              if (moreKeysOpen) resetMobileTerminalComposer();
-              setMoreKeysOpen((open) => !open);
-            }}
-          >
-            <Keyboard size={15} aria-hidden="true" />
-          </button>
-          <button
-            className="term-key term-key-icon"
-            type="button"
-            aria-label="Focus terminal keyboard"
-            title="Terminal keyboard"
-            disabled={disabled}
-            onPointerDown={(event) => {
-              if (event.pointerType === "touch" || event.pointerType === "pen") {
-                event.preventDefault();
-                onTerminalFocus();
-              }
-            }}
-            onClick={onTerminalFocus}
-          >
-            <SquareTerminal size={15} />
-          </button>
-        </div>
       </div>
 
       {mobileControls && moreKeysOpen ? (
@@ -2043,6 +1997,18 @@ export function TerminalCommandControls({
         <div className="term-key-more-row" role="group" aria-label="More terminal keys">
           {MORE_TERMINAL_KEYS.map((key) =>
             renderSharedKey(key, key.id !== "home" && key.id !== "end"))}
+          <button
+            className="term-key term-key-icon"
+            type="button"
+            aria-label="Edit key board"
+            title="Edit key board"
+            onClick={() => {
+              setMoreKeysOpen(false);
+              setKeyPadEditorOpen(true);
+            }}
+          >
+            <Pencil size={15} />
+          </button>
           <button
             className="term-key term-key-icon term-key-compose-action"
             type="button"
@@ -2141,6 +2107,76 @@ export function TerminalCommandControls({
           }
         }}
       >
+        {mobileControls ? (
+          <div className="term-input-actions">
+            <button
+              className="term-key term-key-icon"
+              type="button"
+              aria-label={moreKeysOpen ? "Hide more keys" : "Show more keys"}
+              aria-expanded={moreKeysOpen}
+              title={moreKeysOpen ? "Hide more keys" : "More keys"}
+              onClick={() => {
+                if (moreKeysOpen) resetMobileTerminalComposer();
+                setMoreKeysOpen((open) => !open);
+                setAttachmentsOpen(false);
+              }}
+            >
+              <Keyboard size={15} aria-hidden="true" />
+            </button>
+            <button
+              className="term-key term-key-icon"
+              type="button"
+              aria-label="Attach or paste"
+              aria-expanded={attachmentsOpen}
+              title="Attach or paste"
+              onClick={() => {
+                setAttachmentsOpen((open) => !open);
+              }}
+            >
+              <Paperclip size={15} />
+            </button>
+          </div>
+        ) : null}
+        {mobileControls && attachmentsOpen ? (
+          <div className="term-attachment-menu" role="menu" aria-label="Attachments">
+            <button
+              type="button"
+              role="menuitem"
+              aria-label="Upload file"
+              disabled={uploadDisabled}
+              onClick={() => {
+                setAttachmentsOpen(false);
+                onUpload();
+              }}
+            >
+              Upload file
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              aria-label="Paste from clipboard"
+              disabled={disabled}
+              onClick={() => {
+                setAttachmentsOpen(false);
+                void pasteFromClipboard();
+              }}
+            >
+              Paste from clipboard
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              aria-label="Stage command"
+              disabled={disabled || value.length === 0}
+              onClick={() => {
+                setAttachmentsOpen(false);
+                stage();
+              }}
+            >
+              Stage command
+            </button>
+          </div>
+        ) : null}
         {expandingInput ? (
           <textarea
             key={fieldKey}

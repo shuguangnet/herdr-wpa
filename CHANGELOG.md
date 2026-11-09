@@ -23,6 +23,9 @@
 
 ### Changed
 
+- Simplify the mobile dock into one key board block and one input bar: attachment actions move into
+  the input row, upload/paste/stage share one menu, key board editing moves into the More keys
+  drawer, and the redundant terminal-keyboard button is gone.
 - Compact the key board to one row while the command field is focused, and space multi-step chord
   keys by 8 ms so tmux-style prefixes are not merged.
 - Only show the split layout when the viewport is tall enough to use it, and make the PWA manifest
