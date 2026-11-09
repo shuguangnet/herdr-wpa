@@ -102,6 +102,8 @@ type Props = {
   desktopCommandComposer?: boolean;
   /** Whether the editable key board replaces the legacy quick-key strip. */
   mobileKeyPad?: boolean;
+  /** Let this browser own the shared PTY size instead of clamping to Herdr's. */
+  terminalOwnsSize?: boolean;
   /** Whether Enter inserts a newline in the desktop command composer. */
   desktopCommandEnterNewline?: boolean;
   /** Whether the terminal cursor blinks. Off on touch devices. */
@@ -194,6 +196,7 @@ function TerminalViewComponent({
   mobileControls = false,
   desktopCommandComposer = false,
   mobileKeyPad = true,
+  terminalOwnsSize = false,
   desktopCommandEnterNewline = true,
   cursorBlink = true,
   terminalFontSizePx = DEFAULT_TERMINAL_FONT_SIZE_PX,
@@ -833,6 +836,7 @@ function TerminalViewComponent({
           initialSize,
           terminalOutputCoalesceMs,
           terminalOutputGzipSupported(),
+          terminalOwnsSize,
         ),
       );
       let gzipOutputAcknowledged = false;
@@ -2250,12 +2254,13 @@ const QUICK_TERMINAL_KEYS: {
   })),
 ];
 
-function terminalSocketUrl(
+export function terminalSocketUrl(
   wsUrl: (path: string, query?: URLSearchParams) => string,
   terminalId: string,
   size: TerminalSize,
   coalesceMs: number,
   requestGzipOutput: boolean,
+  browserSize = false,
 ) {
   const params = new URLSearchParams({
     terminal_id: terminalId,
@@ -2266,6 +2271,9 @@ function terminalSocketUrl(
   });
   if (requestGzipOutput) {
     params.set("output_encoding", "gzip");
+  }
+  if (browserSize) {
+    params.set("browser_size", "1");
   }
   return wsUrl("/ws/terminal", params);
 }

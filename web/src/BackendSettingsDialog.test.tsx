@@ -68,6 +68,29 @@ describe("BackendSettingsDialog terminal accessibility", () => {
     expect(onFocusChange).toHaveBeenCalledWith(true);
   });
 
+  it("lets the browser own the terminal size explicitly", async () => {
+    const onOwnsSize = vi.fn();
+    const { container } = await render(
+      <BackendSettingsDialog
+        {...settingsProps()}
+        showMobileTerminalSettings={true}
+        onTerminalOwnsSize={onOwnsSize}
+      />,
+    );
+    const tab = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find(
+      (button) => button.textContent?.includes("Mobile"),
+    );
+    await act(async () => tab!.click());
+    const group = requiredElement<HTMLElement>(
+      container,
+      '[role="group"][aria-label="Browser sizes terminal"]',
+    );
+    const [off, on] = Array.from(group.querySelectorAll<HTMLButtonElement>("button"));
+    expect(off.getAttribute("aria-pressed")).toBe("true");
+    await act(async () => on.click());
+    expect(onOwnsSize).toHaveBeenCalledWith(true);
+  });
+
   it("offers a fallback to the legacy quick-key strip", async () => {
     const onKeyPad = vi.fn();
     const { container } = await render(
@@ -335,6 +358,8 @@ function settingsProps() {
     onDesktopCommandEnterNewline: vi.fn(),
     terminalScreenReaderText: false,
     onTerminalScreenReaderText: vi.fn(),
+    terminalOwnsSize: false,
+    onTerminalOwnsSize: vi.fn(),
     autoRenameUploadConflicts: true,
     onAutoRenameUploadConflicts: vi.fn(),
     terminalInputTransport: "json" as const,

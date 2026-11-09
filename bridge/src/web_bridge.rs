@@ -219,6 +219,8 @@ struct TerminalQuery {
     output_encoding: Option<TerminalOutputWireEncoding>,
     #[serde(default)]
     takeover: bool,
+    /// 1 lets this browser own the PTY size instead of clamping to Herdr's.
+    browser_size: Option<u8>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
@@ -3753,6 +3755,7 @@ async fn handle_terminal_socket(socket: WebSocket, state: BridgeState, query: Te
         cols,
         rows,
         query.takeover,
+        query.browser_size.unwrap_or(0) != 0,
     )
     .await
     {
@@ -4002,6 +4005,7 @@ async fn acquire_terminal_session(
     cols: u16,
     rows: u16,
     takeover: bool,
+    browser_size: bool,
 ) -> Result<SharedTerminalSession, BridgeError> {
     tokio::task::spawn_blocking(move || {
         // What to do after inspecting the maps under one lock hold.
@@ -4105,7 +4109,12 @@ async fn acquire_terminal_session(
                 // Herdr resizes the pane PTY on attach, so a small browser
                 // would otherwise shrink the server's terminal. Use Herdr's
                 // current pane size as a floor and never go below it.
-                let size_floor = current_terminal_size(&state.api, &terminal_id).unwrap_or((0, 0));
+                let size_floor = if browser_size {
+                    // Explicit opt-in: this browser may size the shared PTY.
+                    (0, 0)
+                } else {
+                    current_terminal_size(&state.api, &terminal_id).unwrap_or((0, 0))
+                };
                 let size = effective_terminal_size((cols, rows), size_floor);
                 let attach = open_terminal_attach(
                     state.client_socket_path.clone(),

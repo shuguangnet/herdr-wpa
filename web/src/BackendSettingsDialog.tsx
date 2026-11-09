@@ -84,6 +84,8 @@ type Props = {
   onDesktopCommandEnterNewline: (enabled: boolean) => void;
   terminalScreenReaderText: boolean;
   onTerminalScreenReaderText: (enabled: boolean) => void;
+  terminalOwnsSize: boolean;
+  onTerminalOwnsSize: (enabled: boolean) => void;
   autoRenameUploadConflicts: boolean;
   onAutoRenameUploadConflicts: (enabled: boolean) => void;
   terminalInputTransport: TerminalInputTransport;
@@ -152,6 +154,8 @@ export function BackendSettingsDialog({
   onDesktopCommandEnterNewline,
   terminalScreenReaderText,
   onTerminalScreenReaderText,
+  terminalOwnsSize,
+  onTerminalOwnsSize,
   autoRenameUploadConflicts,
   onAutoRenameUploadConflicts,
   terminalInputTransport,
@@ -953,6 +957,33 @@ export function BackendSettingsDialog({
                       data-on={mobileKeyPadEnabled}
                       aria-pressed={mobileKeyPadEnabled}
                       onClick={() => onMobileKeyPadEnabled(true)}
+                    >
+                      On
+                    </button>
+                  </div>
+                </div>
+                <div className="settings-row">
+                  <span title="Off keeps Herdr's pane size and scrolls horizontally on narrow screens">
+                    Browser sizes terminal
+                  </span>
+                  <div
+                    className="segmented-control"
+                    role="group"
+                    aria-label="Browser sizes terminal"
+                  >
+                    <button
+                      type="button"
+                      data-on={!terminalOwnsSize}
+                      aria-pressed={!terminalOwnsSize}
+                      onClick={() => onTerminalOwnsSize(false)}
+                    >
+                      Off
+                    </button>
+                    <button
+                      type="button"
+                      data-on={terminalOwnsSize}
+                      aria-pressed={terminalOwnsSize}
+                      onClick={() => onTerminalOwnsSize(true)}
                     >
                       On
                     </button>

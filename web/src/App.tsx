@@ -77,12 +77,14 @@ import {
   DEFAULT_CONTENT_INSET_TOP_PX,
   DEFAULT_MOBILE_CONTROLS_SCALE_PERCENT,
   DEFAULT_MOBILE_KEY_PAD_ENABLED,
+  DEFAULT_TERMINAL_OWNS_SIZE,
   DEFAULT_AGENT_FEATURES_IN_TABS,
   DEFAULT_MULTI_HOST_SPACE_SELECTION,
   parseContentInsetBottomPx,
   parseContentInsetTopPx,
   parseMobileControlsScalePercent,
   parseMobileKeyPadEnabled,
+  parseTerminalOwnsSize,
   parseAgentFeaturesInTabs,
   parseMultiHostSpaceSelection,
 } from "./displayPrefs";
@@ -451,6 +453,7 @@ type DisplayPrefs = {
   desktopCommandComposer: boolean;
   desktopCommandEnterNewline: boolean;
   terminalScreenReaderText: boolean;
+  terminalOwnsSize: boolean;
   autoRenameUploadConflicts: boolean;
   terminalInputTransport: TerminalInputTransport;
   terminalInputBatchDelayMs: number;
@@ -521,6 +524,7 @@ function readDisplayPrefs(): DisplayPrefs {
     desktopCommandComposer: DEFAULT_DESKTOP_COMMAND_COMPOSER,
     desktopCommandEnterNewline: DEFAULT_DESKTOP_COMMAND_ENTER_NEWLINE,
     terminalScreenReaderText: DEFAULT_TERMINAL_SCREEN_READER_TEXT,
+    terminalOwnsSize: DEFAULT_TERMINAL_OWNS_SIZE,
     autoRenameUploadConflicts: DEFAULT_AUTO_RENAME_UPLOAD_CONFLICTS,
     terminalInputTransport: DEFAULT_TERMINAL_INPUT_TRANSPORT,
     terminalInputBatchDelayMs: DEFAULT_TERMINAL_INPUT_BATCH_DELAY_MS,
@@ -735,6 +739,7 @@ function parseDisplayPrefsValue(
       parsed.terminalScreenReaderText,
       fallback.terminalScreenReaderText,
     ),
+    terminalOwnsSize: parseTerminalOwnsSize(parsed.terminalOwnsSize),
     autoRenameUploadConflicts: parseAutoRenameUploadConflicts(
       parsed.autoRenameUploadConflicts,
       fallback.autoRenameUploadConflicts,
@@ -1139,6 +1144,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
   const [terminalScreenReaderText, setTerminalScreenReaderText] = useState(
     initialPrefs.terminalScreenReaderText,
   );
+  const [terminalOwnsSize, setTerminalOwnsSize] = useState(initialPrefs.terminalOwnsSize);
   const [autoRenameUploadConflicts, setAutoRenameUploadConflicts] = useState(
     initialPrefs.autoRenameUploadConflicts,
   );
@@ -1291,6 +1297,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
       setDesktopCommandComposer(prefs.desktopCommandComposer);
       setDesktopCommandEnterNewline(prefs.desktopCommandEnterNewline);
       setTerminalScreenReaderText(prefs.terminalScreenReaderText);
+      setTerminalOwnsSize(prefs.terminalOwnsSize);
       setAutoRenameUploadConflicts(prefs.autoRenameUploadConflicts);
       setTerminalInputTransport(prefs.terminalInputTransport);
       setTerminalInputBatchDelayMs(prefs.terminalInputBatchDelayMs);
@@ -1856,6 +1863,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
       desktopCommandComposer,
       desktopCommandEnterNewline,
       terminalScreenReaderText,
+      terminalOwnsSize,
       autoRenameUploadConflicts,
       terminalInputTransport,
       terminalInputBatchDelayMs,
@@ -1898,6 +1906,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
     desktopCommandComposer,
     desktopCommandEnterNewline,
     terminalScreenReaderText,
+    terminalOwnsSize,
     autoRenameUploadConflicts,
     terminalInputTransport,
     terminalInputBatchDelayMs,
@@ -4399,6 +4408,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
             terminalCursorBlink={terminalCursorBlink}
             terminalFontSizePx={terminalFontSizePx}
             terminalScreenReaderText={terminalScreenReaderText}
+            terminalOwnsSize={terminalOwnsSize}
             autoRenameUploadConflicts={autoRenameUploadConflicts}
             mobileControlsScalePercent={mobileControlsScalePercent}
             mobileTapTarget={mobileTerminalTapTarget}
@@ -4435,6 +4445,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
             cursorBlink={!isTouchInput && terminalCursorBlink}
             terminalFontSizePx={terminalFontSizePx}
             terminalScreenReaderText={terminalScreenReaderText}
+            terminalOwnsSize={terminalOwnsSize}
             autoRenameUploadConflicts={autoRenameUploadConflicts}
             mobileControlsScalePercent={mobileControlsScalePercent}
             mobileTapTarget={mobileTerminalTapTarget}
@@ -4681,6 +4692,8 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
           onDesktopCommandEnterNewline={setDesktopCommandEnterNewline}
           terminalScreenReaderText={terminalScreenReaderText}
           onTerminalScreenReaderText={setTerminalScreenReaderText}
+          terminalOwnsSize={terminalOwnsSize}
+          onTerminalOwnsSize={setTerminalOwnsSize}
           autoRenameUploadConflicts={autoRenameUploadConflicts}
           onAutoRenameUploadConflicts={setAutoRenameUploadConflicts}
           terminalInputTransport={terminalInputTransport}
@@ -6224,6 +6237,7 @@ function SplitGrid({
   terminalCursorBlink,
   terminalFontSizePx,
   terminalScreenReaderText,
+  terminalOwnsSize,
   autoRenameUploadConflicts,
   mobileControlsScalePercent,
   mobileTapTarget,
@@ -6255,6 +6269,7 @@ function SplitGrid({
   terminalCursorBlink: boolean;
   terminalFontSizePx: number;
   terminalScreenReaderText: boolean;
+  terminalOwnsSize: boolean;
   autoRenameUploadConflicts: boolean;
   mobileControlsScalePercent: number;
   mobileTapTarget: MobileTerminalTapTarget;
@@ -6304,6 +6319,7 @@ function SplitGrid({
               cursorBlink={!touchInput && terminalCursorBlink}
               terminalFontSizePx={terminalFontSizePx}
               terminalScreenReaderText={terminalScreenReaderText}
+              terminalOwnsSize={terminalOwnsSize}
               autoRenameUploadConflicts={autoRenameUploadConflicts}
               mobileControlsScalePercent={mobileControlsScalePercent}
               mobileTapTarget={mobileTapTarget}
