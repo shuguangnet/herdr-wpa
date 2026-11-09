@@ -59,6 +59,7 @@ import type { TerminalInputTransport } from "./terminalInputTransport";
 import { TERMINAL_OUTPUT_COALESCE_OPTIONS_MS } from "./terminalOutputCoalescing";
 
 import { resetKeyBoard } from "./mobileKeyBoardStore";
+import { InstallControl } from "./InstallControl";
 import { setHapticsEnabled, useHapticsEnabled } from "./useHaptics";
 import { setMobileGesturesEnabled, useMobileGesturesEnabled } from "./mobileGestures";
 
@@ -936,6 +937,7 @@ export function BackendSettingsDialog({
 
             {activeArea === "mobile" && showMobileTerminalSettings ? (
               <div className="settings-section settings-section-flat">
+                <InstallControl />
                 <div className="settings-label">Key board &amp; gestures</div>
                 <div className="settings-row">
                   <span>Editable key board</span>

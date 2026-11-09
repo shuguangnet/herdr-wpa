@@ -6,6 +6,8 @@
 
 ### Added
 
+- Add a PWA install row: an `Install` button when the browser offers one, and the
+  Share → Add to Home Screen steps on iOS before the app is installed.
 - Add phone conveniences: a scroll-to-bottom button, clipboard paste, two-finger font zoom, a screen
   wake lock while the page is visible, and in-page agent attention notices with vibration and a
   title marker.
@@ -23,6 +25,8 @@
 
 ### Changed
 
+- Route transient feedback through one status toast over the stage, replacing the separate error
+  toast, agent notice bar, paste status line, and upload status overlay.
 - Simplify the mobile dock into one key board block and one input bar: attachment actions move into
   the input row, upload/paste/stage share one menu, key board editing moves into the More keys
   drawer, and the redundant terminal-keyboard button is gone.
@@ -38,6 +42,8 @@
 
 ### Fixed
 
+- Swallow the synthetic click that follows a navigation gesture, and lock horizontal overscroll
+  while a terminal is mounted so PTY-width scrolling does not drag the page.
 - Clamp browser terminal resizes to the pane size Herdr already uses, so connecting from a narrow
   phone no longer shrinks the server's terminal or other clients. Browsers render at the PTY size
   and scroll horizontally when the viewport is smaller.

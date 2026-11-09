@@ -7,6 +7,8 @@ export const GESTURE_DIRECTION_THRESHOLD_PX = 12;
 export const GESTURE_SWIPE_RATIO = 0.15;
 export const GESTURE_MIN_SWIPE_PX = 48;
 export const GESTURE_PULL_REFRESH_PX = 64;
+/** After a navigation gesture, ignore the synthetic click the browser emits. */
+export const GESTURE_CLICK_SWALLOW_MS = 350;
 
 export type GestureIntent =
   | "pending"
@@ -122,6 +124,13 @@ const EXCLUDED_SELECTOR = [
 ].join(",");
 
 /** Gestures never start on a control, a terminal canvas or an overlay. */
+let swallowClickUntil = 0;
+
+/** Whether a click landing now belongs to the gesture that just finished. */
+export function shouldSwallowClick(now: number, until: number): boolean {
+  return now < until;
+}
+
 export function isGestureExcludedTarget(target: EventTarget | null): boolean {
   if (!target || typeof Element === "undefined" || !(target instanceof Element)) {
     return false;
@@ -210,6 +219,11 @@ export function useMobileGestures(options: MobileGestureOptions): void {
         atTop: start.atTop,
       });
       reset();
+      if (gesture === "swipe-left" || gesture === "swipe-right" || gesture === "back") {
+        // The browser still emits a click at the pointer-up position; without
+        // this the gesture would also tap whatever sat there.
+        swallowClickUntil = performance.now() + GESTURE_CLICK_SWALLOW_MS;
+      }
       if (gesture === "swipe-left") {
         latest.current.onSwipeLeft();
       } else if (gesture === "swipe-right") {
@@ -225,11 +239,24 @@ export function useMobileGestures(options: MobileGestureOptions): void {
     window.addEventListener("pointermove", onPointerMove, { passive: false });
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", reset);
+    const onClickCapture = (event: MouseEvent) => {
+      if (!shouldSwallowClick(performance.now(), swallowClickUntil)) {
+        return;
+      }
+      if (isGestureExcludedTarget(event.target)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      swallowClickUntil = 0;
+    };
+    window.addEventListener("click", onClickCapture, true);
     return () => {
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", reset);
+      window.removeEventListener("click", onClickCapture, true);
     };
   }, [options.enabled]);
 }

@@ -3957,3 +3957,63 @@ button {
 .term-attachment-menu button:disabled {
   opacity: 0.45;
 }
+
+/* One transient status surface, floating over the stage instead of a layout row. */
+.stage-toast {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  max-width: min(560px, calc(100% - 24px));
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--base) 94%, transparent);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.4);
+  color: var(--text);
+  font-size: 12.5px;
+  transform: translateX(-50%);
+}
+
+.stage-toast[data-tone="success"] {
+  border-color: color-mix(in srgb, var(--green) 60%, var(--line));
+}
+
+.stage-toast[data-tone="warn"] {
+  border-color: color-mix(in srgb, var(--peach) 70%, var(--line));
+}
+
+.stage-toast[data-tone="error"] {
+  border-color: color-mix(in srgb, var(--red) 70%, var(--line));
+}
+
+.stage-toast-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stage-toast-dismiss {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--subtext0);
+}
+
+.stage-toast-dismiss:hover {
+  background: var(--surface0);
+  color: var(--text);
+}
+
+.settings-note {
+  color: var(--subtext0);
+  font-size: 12px;
+}

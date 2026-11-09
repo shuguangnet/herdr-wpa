@@ -154,6 +154,8 @@ import {
 } from "./refreshCoordinator";
 import { commitSnapshotState, snapshotFingerprint } from "./snapshotState";
 import { ConnectionStatusBar } from "./ConnectionStatusBar";
+import { StatusToast } from "./StatusToast";
+import { clearStatus, setStatus, useStatus } from "./status";
 import { PwaUpdateBar } from "./PwaUpdateBar";
 import { usePwaUpdate } from "./usePwaUpdate";
 import { connectionPhase, isDaemonUnavailableError, type TerminalConnectionState } from "./connectionPhase";
@@ -1195,7 +1197,8 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
   useKeyboardInset();
   const pwaUpdate = usePwaUpdate();
   const online = useOnlineStatus();
-  const [mobileNotice, setMobileNotice] = useState<string | null>(null);
+  const status = useStatus();
+
   const [terminalConnectionState, setTerminalConnectionState] =
     useState<TerminalConnectionState>("idle");
   const isCompactLayout = useIsCompactLayout();
@@ -2180,8 +2183,8 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
     if (!error) {
       return;
     }
-    const timer = window.setTimeout(() => setError(null), 4500);
-    return () => window.clearTimeout(timer);
+    setStatus(error, "error");
+    setError(null);
   }, [error]);
 
   useEffect(() => {
@@ -3349,8 +3352,9 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
         return;
       }
       const label = info.agent ?? info.title ?? info.paneId;
-      setMobileNotice(
+      setStatus(
         info.status === "blocked" ? `${label} needs attention` : `${label} finished`,
+        info.status === "blocked" ? "warn" : "success",
       );
       if (typeof navigator.vibrate === "function") {
         navigator.vibrate(info.status === "blocked" ? [20, 60, 20, 60, 20] : [20, 40, 20]);
@@ -3361,14 +3365,6 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
     },
     [isCompactLayout],
   );
-
-  useEffect(() => {
-    if (!mobileNotice) {
-      return;
-    }
-    const timer = window.setTimeout(() => setMobileNotice(null), 4000);
-    return () => window.clearTimeout(timer);
-  }, [mobileNotice]);
 
   useEffect(() => {
     if (!isCompactLayout) {
@@ -4332,6 +4328,7 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
           ) : null}
           {selectedPane ? <StatusBadge status={selectedPane.agent_status} /> : null}
         </header>
+        {status ? <StatusToast status={status} onDismiss={clearStatus} /> : null}
         <ConnectionStatusBar
           phase={connectionStatusPhase}
           retrying={loadState === "loading"}
@@ -4370,14 +4367,6 @@ function AppContent({ commandDrafts }: { commandDrafts: ReturnType<typeof create
               }}
             >
               Got it
-            </button>
-          </div>
-        ) : null}
-        {mobileNotice ? (
-          <div className="mobile-notice" role="status">
-            <span>{mobileNotice}</span>
-            <button type="button" className="term-key" onClick={() => setMobileNotice(null)}>
-              Dismiss
             </button>
           </div>
         ) : null}

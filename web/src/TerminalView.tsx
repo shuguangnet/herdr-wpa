@@ -61,6 +61,8 @@ import {
   terminalOutputGzipSupported,
 } from "./terminalOutputEncoding";
 import { parseTerminalSizeMessage } from "./terminalSize";
+import { clearStatus, setStatus } from "./status";
+import { useRootOverscrollLock } from "./useRootOverscrollLock";
 import { DEFAULT_TERMINAL_FONT_SIZE_PX } from "./terminalPrefs";
 import {
   TERMINAL_FOREGROUND_FAST_ATTEMPTS,
@@ -236,7 +238,6 @@ function TerminalViewComponent({
   const batchedInputRef = useRef(emptyTerminalInputBatch());
   const batchedInputFlushTimerRef = useRef<number | null>(null);
   const terminalInputEncoderRef = useRef(new TextEncoder());
-  const uploadStatusTimerRef = useRef<number | null>(null);
   const uploadInFlightRef = useRef(false);
   const uploadConflictRef = useRef<UploadConflictState | null>(null);
   const connectionKeyRef = useRef(connectionKey);
@@ -254,7 +255,6 @@ function TerminalViewComponent({
   const [hasAttachedForTerminal, setHasAttachedForTerminal] = useState(false);
   const terminalAttachCountRef = useRef(0);
   const [showConnectionOverlay, setShowConnectionOverlay] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadConflict, setUploadConflict] = useState<UploadConflictState | null>(null);
   const [mobileSelectionAction, setMobileSelectionAction] =
@@ -324,17 +324,11 @@ function TerminalViewComponent({
   }, [focusCommandInput]);
 
   const showUploadStatus = useCallback((message: string | null, timeoutMs?: number) => {
-    if (uploadStatusTimerRef.current !== null) {
-      window.clearTimeout(uploadStatusTimerRef.current);
-      uploadStatusTimerRef.current = null;
+    if (!message) {
+      clearStatus();
+      return;
     }
-    setUploadStatus(message);
-    if (message && timeoutMs) {
-      uploadStatusTimerRef.current = window.setTimeout(() => {
-        uploadStatusTimerRef.current = null;
-        setUploadStatus(null);
-      }, timeoutMs);
-    }
+    setStatus(message, "info", timeoutMs ?? 2200);
   }, []);
 
   const copyText = useCallback(
@@ -1256,10 +1250,6 @@ function TerminalViewComponent({
 
   useEffect(() => {
     return () => {
-      if (uploadStatusTimerRef.current !== null) {
-        window.clearTimeout(uploadStatusTimerRef.current);
-        uploadStatusTimerRef.current = null;
-      }
       resolveUploadConflict(false, false);
     };
   }, []);
@@ -1540,11 +1530,6 @@ function TerminalViewComponent({
           {terminalConnectionCopy(connectionState, closeReason, hasAttachedForTerminal)}
         </div>
       ) : null}
-      {uploadStatus ? (
-        <div className="terminal-upload-status" role="status" aria-live="polite">
-          {uploadStatus}
-        </div>
-      ) : null}
       {!mobileControls ? (
         <button
           className="terminal-upload-fab"
@@ -1725,14 +1710,7 @@ export function TerminalCommandControls({
     acceptedValueRef.current = event.currentTarget.value;
     setValue(event.currentTarget.value);
   };
-  const [pasteStatus, setPasteStatus] = useState<string | null>(null);
-  useEffect(() => {
-    if (!pasteStatus) {
-      return;
-    }
-    const timer = window.setTimeout(() => setPasteStatus(null), 2600);
-    return () => window.clearTimeout(timer);
-  }, [pasteStatus]);
+
   const pasteFromClipboard = async () => {
     if (disabled) {
       return;
@@ -1740,7 +1718,7 @@ export function TerminalCommandControls({
     try {
       const text = await navigator.clipboard?.readText();
       if (!text) {
-        setPasteStatus("Clipboard is empty");
+        setStatus("Clipboard is empty", "info", 2600);
         return;
       }
       const next = `${acceptedValueRef.current}${text}`;
@@ -1750,9 +1728,8 @@ export function TerminalCommandControls({
       if (node) {
         node.value = next;
       }
-      setPasteStatus(null);
     } catch {
-      setPasteStatus("Clipboard permission denied");
+      setStatus("Clipboard permission denied", "warn", 3000);
     }
   };
   const [fieldKey, setFieldKey] = useState(0);
@@ -1763,6 +1740,7 @@ export function TerminalCommandControls({
   const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   const chordTimersRef = useRef<number[]>([]);
   const keyBoard = useKeyBoard();
+  useRootOverscrollLock();
   const [keyPadEditorOpen, setKeyPadEditorOpen] = useState(false);
   const [composerModifiers, setComposerModifiers] = useState<MobileTerminalModifier[]>([]);
   const [composerKey, setComposerKey] = useState<MobileTerminalChordKey | null>(null);
@@ -2225,12 +2203,6 @@ export function TerminalCommandControls({
           <Send size={16} />
         </button>
       </form>
-
-      {pasteStatus ? (
-        <p className="term-paste-status" role="status">
-          {pasteStatus}
-        </p>
-      ) : null}
 
       {mobileControls && keyPadEditorOpen ? (
         <MobileKeyPadEditor

@@ -4,12 +4,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  GESTURE_CLICK_SWALLOW_MS,
   GESTURE_DIRECTION_THRESHOLD_PX,
   GESTURE_MIN_SWIPE_PX,
   GESTURE_PULL_REFRESH_PX,
   isGestureExcludedTarget,
   parseMobileGesturesEnabled,
   resolveGesture,
+  shouldSwallowClick,
 } from "./mobileGestures";
 
 const base = { width: 390, edgeStart: false, atTop: false };
@@ -65,6 +67,15 @@ describe("isGestureExcludedTarget", () => {
     expect(isGestureExcludedTarget(ignored)).toBe(true);
     expect(isGestureExcludedTarget(plain)).toBe(false);
     expect(isGestureExcludedTarget(null)).toBe(false);
+  });
+});
+
+describe("shouldSwallowClick", () => {
+  it("only swallows inside the post-gesture window", () => {
+    expect(shouldSwallowClick(100, 100 + GESTURE_CLICK_SWALLOW_MS)).toBe(true);
+    expect(shouldSwallowClick(100 + GESTURE_CLICK_SWALLOW_MS, 100 + GESTURE_CLICK_SWALLOW_MS)).toBe(
+      false,
+    );
   });
 });
 
