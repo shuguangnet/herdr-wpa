@@ -167,6 +167,7 @@ import { useWakeLock } from "./useWakeLock";
 import { useViewportHeight } from "./useViewportHeight";
 import { markMobileHintSeen, readMobileHintSeen, shouldShowMobileHint } from "./mobileHint";
 import { useMobileGestures, useMobileGesturesEnabled } from "./mobileGestures";
+import { COMPACT_LAYOUT_MEDIA_QUERY, isCompactLayoutSize } from "./layout";
 import { TerminalView } from "./TerminalView";
 import {
   DEFAULT_TERMINAL_SCREEN_READER_TEXT,
@@ -485,7 +486,7 @@ type LegacyDisplaySelectionPrefs = {
   activeSpaceId: string | null;
   selectedPaneId: string | null;
 };
-const COMPACT_LAYOUT_QUERY = "(max-width: 820px)";
+const COMPACT_LAYOUT_QUERY = COMPACT_LAYOUT_MEDIA_QUERY;
 const TOUCH_INPUT_QUERY = "(hover: none) and (pointer: coarse)";
 const DISPLAY_PREFS_KEY = "herdr.mobileWeb.displayPrefs.v2";
 const SHARED_NAVIGATION_PREFS_KEY = "herdr.mobileWeb.sharedNavigation.v1";
@@ -9935,7 +9936,7 @@ function isCompactLayoutViewport() {
   if (typeof window === "undefined") {
     return false;
   }
-  return window.matchMedia(COMPACT_LAYOUT_QUERY).matches || window.innerWidth <= 820;
+  return isCompactLayoutSize(window.innerWidth, window.innerHeight);
 }
 
 function useIsTouchInput() {

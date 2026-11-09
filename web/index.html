@@ -13,9 +13,45 @@
     <link rel="icon" href="/herdr-logo.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/herdr-logo-180.png" />
     <title>herdr-web</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #11111b;
+      }
+      #root {
+        min-height: 100dvh;
+      }
+      .boot {
+        display: grid;
+        min-height: 100dvh;
+        place-items: center;
+      }
+      .boot-dot {
+        width: 26px;
+        height: 26px;
+        border: 2px solid #313244;
+        border-top-color: #b4befe;
+        border-radius: 50%;
+        animation: boot-spin 0.8s linear infinite;
+      }
+      @keyframes boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-dot {
+          animation: none;
+          opacity: 0.7;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot" aria-hidden="true"><div class="boot-dot"></div></div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

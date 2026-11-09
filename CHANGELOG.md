@@ -28,6 +28,9 @@
 
 ### Changed
 
+- Pick one- or two-column layout from width and height together: landscape phones stay single
+  column, tablets get the sidebar beside the terminal, and very wide windows stay desktop.
+- Make Settings full-screen on phones and show a boot spinner before the app shell loads.
 - Remember each terminal's scrollback position across pane and tab switches.
 - Float the PWA update prompt and the first-run hint over the stage instead of taking layout rows,
   and collapse the key board in short landscape viewports.
